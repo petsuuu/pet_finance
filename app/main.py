@@ -22,6 +22,7 @@ from app.schemas.inputs import (
     TransactionPatch,
 )
 from app.services.ledger import Ledger
+from app.services.plans import plans_router
 
 
 def create_app(settings: Settings) -> FastAPI:
@@ -170,6 +171,7 @@ def create_app(settings: Settings) -> FastAPI:
             ).mappings()
         ]
 
+    api.include_router(plans_router(ledger))
     return api
 
 
