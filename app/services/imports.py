@@ -43,6 +43,14 @@ def normalize(snapshot: Snapshot) -> list[dict[str, Any]]:
             raise ValueError("Unsupported status or currency")
         account = row.get("account", {}).get("id")
         category = row.get("category", {}).get("id")
+        if category and category not in categories:
+            candidates = [
+                c["id"]
+                for c in snapshot.categories
+                if c["name"] == row.get("category", {}).get("name")
+            ]
+            if len(candidates) == 1:
+                category = candidates[0]
         if account not in accounts or (category and category not in categories):
             raise ValueError("Missing source reference")
         result.append(
