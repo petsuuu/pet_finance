@@ -23,6 +23,7 @@ from app.schemas.inputs import (
 )
 from app.services.ledger import Ledger
 from app.services.plans import plans_router
+from app.services.schedules import schedules_router
 
 
 def create_app(settings: Settings) -> FastAPI:
@@ -108,6 +109,7 @@ def create_app(settings: Settings) -> FastAPI:
         status: Status | None = None,
         type: Kind | None = None,
         search: str | None = None,
+        tag: UUID | None = None,
         limit: Annotated[int, Query(ge=1, le=500)] = 100,
         offset: Annotated[int, Query(ge=0)] = 0,
     ) -> list[dict[str, Any]]:
@@ -121,6 +123,11 @@ def create_app(settings: Settings) -> FastAPI:
         }.items():
             if value is not None:
                 query = query.where(table.c[key] == value)
+        if tag:
+            links = service.table("transaction_tags")
+            query = query.where(
+                table.c.id.in_(select(links.c.transaction_id).where(links.c.tag_id == tag))
+            )
         if start_date:
             query = query.where(table.c.transaction_date >= start_date)
         if end_date:
@@ -172,6 +179,7 @@ def create_app(settings: Settings) -> FastAPI:
         ]
 
     api.include_router(plans_router(ledger))
+    api.include_router(schedules_router(ledger))
     return api
 
 

@@ -101,3 +101,18 @@ Ambos exigem Bearer token, validam referências e geram audit log. Criar planos
 não gera transações nem altera saldo. Geração de parcelas e auditoria diária
 ficam para a sprint 3. Idempotência e detecção de duplicidade de transações
 já estão implementadas na sprint 1; criação de planos não é idempotente.
+
+## Sprint 3: geração e auditoria
+
+`POST /api/v1/installments/{id}/generate` gera parcelas PENDING, com numeração
+única e datas ancoradas no dia original. Reexecução e concorrência não duplicam
+parcelas, incluindo as canceladas. Não altera o saldo até o pagamento.
+`GET /api/v1/audit/installments?identity=<id>` verifica datas, valores e parcelas ausentes.
+`GET /api/v1/audit/recurrences?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD`
+consulta ocorrências mensais (janela máxima de 366 dias); as_of é opcional.
+Pagamentos são conciliados por recurrence_id e transaction_date igual ao vencimento;
+pagamentos antecipados devem preservar essa data financeira. Esta auditoria é
+uma consulta: agendamento diário depende da hospedagem e ainda não foi instalado.
+`POST /api/v1/tags` cria uma tag com name; `GET /api/v1/tags` lista tags.
+Transações aceitam tags como lista de UUIDs e recurrence_id opcional.
+`GET /api/v1/transactions?tag=<uuid>` filtra por tag. Vínculos geram auditoria.
