@@ -1,0 +1,135 @@
+from calendar import monthrange
+from datetime import date, datetime
+from decimal import Decimal
+from typing import Annotated, Any
+from zoneinfo import ZoneInfo
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select
+
+from app.schemas.inputs import Money
+from app.services.ledger import Ledger
+from app.services.schedules import month_date
+
+ZERO = Decimal("0")
+
+
+def monthly_dashboard(
+    service: Ledger, year: int, month: int, as_of: date, safety_margin: Decimal
+) -> dict[str, Any]:
+    start = date(year, month, 1)
+    end = date(year, month, monthrange(year, month)[1])
+    if not start <= as_of <= end:
+        raise HTTPException(422, "as_of must belong to requested month")
+
+    def rows(name: str) -> list[dict[str, Any]]:
+        table = service.table(name)
+        return [
+            dict(r)
+            for r in service.connection.execute(
+                select(table).where(table.c.user_id == service.user_id)
+            ).mappings()
+        ]
+
+    accounts = rows("accounts")
+    transactions = rows("transactions")
+    categories = {r["id"]: r for r in rows("categories")}
+    rules = rows("recurring_transactions")
+    balance = sum((r["opening_balance"] for r in accounts), ZERO)
+    income = expense = pending_expense = pending_income = ZERO
+    classes = {"ESSENTIAL": ZERO, "FUNDAMENTAL": ZERO, "SUPERFLUOUS": ZERO, "UNCLASSIFIED": ZERO}
+    totals: dict[Any, Decimal] = {}
+    for row in transactions:
+        day = row["transaction_date"]
+        amount = row["amount"]
+        kind = row["type"]
+        if row["status"] == "POSTED" and day <= as_of:
+            if kind in {"INCOME", "YIELD", "REFUND", "ADJUSTMENT"}:
+                balance += amount
+            elif kind in {"EXPENSE", "CARD_PAYMENT"}:
+                balance -= amount
+            if day >= start:
+                if kind in {"INCOME", "YIELD"}:
+                    income += amount
+                elif kind in {"EXPENSE", "REFUND"}:
+                    net = -amount if kind == "REFUND" else amount
+                    expense += net
+                    category = categories.get(row["category_id"], {})
+                    classes[category.get("expense_class") or "UNCLASSIFIED"] += net
+                    totals[row["category_id"]] = totals.get(row["category_id"], ZERO) + net
+        elif row["status"] == "PENDING" and day <= end:
+            if kind == "EXPENSE":
+                pending_expense += amount
+            elif kind in {"INCOME", "YIELD", "REFUND"}:
+                pending_income += amount
+    # Linked transactions already represent the occurrence, including cancellation.
+    represented = {
+        (r["recurrence_id"], r["transaction_date"]) for r in transactions if r["recurrence_id"]
+    }
+    virtual_expense = virtual_income = ZERO
+    for rule in rules:
+        if not rule["active"] or rule["frequency"] != "MONTHLY":
+            continue
+        due = month_date(start, 0, rule["due_day"])
+        if due < rule["start_date"] or (rule["end_date"] and due > rule["end_date"]):
+            continue
+        if (rule["id"], due) in represented:
+            continue
+        if rule["type"] == "EXPENSE":
+            virtual_expense += rule["expected_amount"]
+        elif rule["type"] in {"INCOME", "YIELD", "REFUND"}:
+            virtual_income += rule["expected_amount"]
+    commitments = pending_expense + virtual_expense
+    expected_income = pending_income + virtual_income
+    return {
+        "year": year,
+        "month": month,
+        "as_of": as_of,
+        "current_balance": balance,
+        "income_month": income,
+        "expense_month": expense,
+        "month_result": income - expense,
+        "effective_savings": None,
+        "pending_commitments": commitments,
+        "pending_recorded_expenses": pending_expense,
+        "unrecorded_recurring_expenses": virtual_expense,
+        "expected_income": expected_income,
+        "safety_margin": safety_margin,
+        "free_after_commitments": balance - commitments - safety_margin,
+        "forecast_closing_balance": balance + expected_income - commitments,
+        "forecast_after_safety_margin": balance + expected_income - commitments - safety_margin,
+        "essential_expense": classes["ESSENTIAL"],
+        "fundamental_expense": classes["FUNDAMENTAL"],
+        "superfluous_expense": classes["SUPERFLUOUS"],
+        "unclassified_expense": classes["UNCLASSIFIED"],
+        "top_categories": [
+            {
+                "category_id": key,
+                "name": categories.get(key, {}).get("name", "Sem categoria"),
+                "amount": value,
+            }
+            for key, value in sorted(totals.items(), key=lambda pair: pair[1], reverse=True)[:5]
+        ],
+        "projection_basis": (
+            "Pending transactions and active monthly rules; no variable spending estimate"
+        ),
+    }
+
+
+def dashboard_router(dependency: Any) -> APIRouter:
+    router = APIRouter(prefix="/api/v1")
+
+    @router.get("/dashboard/monthly")
+    def dashboard(
+        year: int = Query(ge=2000, le=2100),
+        month: int = Query(ge=1, le=12),
+        as_of: date | None = None,
+        safety_margin: Annotated[Money, Query(ge=0)] = Decimal("0"),
+        service: Ledger = Depends(dependency),
+    ) -> dict[str, Any]:
+        today = as_of or datetime.now(ZoneInfo("America/Sao_Paulo")).date()
+        if as_of is None and (year, month) < (today.year, today.month):
+            today = date(year, month, monthrange(year, month)[1])
+        return monthly_dashboard(service, year, month, today, safety_margin)
+
+    return router

@@ -116,3 +116,25 @@ uma consulta: agendamento diário depende da hospedagem e ainda não foi instala
 `POST /api/v1/tags` cria uma tag com name; `GET /api/v1/tags` lista tags.
 Transações aceitam tags como lista de UUIDs e recurrence_id opcional.
 `GET /api/v1/transactions?tag=<uuid>` filtra por tag. Vínculos geram auditoria.
+
+## Sprint 4: dashboard mensal
+
+`GET /api/v1/dashboard/monthly?year=2026&month=10&as_of=2026-10-04&safety_margin=100`
+retorna saldo na data, receitas e despesas realizadas, resultado mensal,
+compromissos pendentes, receitas previstas, dinheiro livre, projeção e top 5 categorias.
+Valores monetários usam Decimal e são retornados como strings. Meses anteriores
+usam o último dia como as_of padrão; o mês atual usa hoje em São Paulo.
+
+Saldo inclui saldo inicial e lançamentos POSTED até as_of. Resultado mensal
+exclui saldo inicial, transferências, ajustes e pagamento de cartão; estornos
+reduzem despesas. Compromissos incluem despesas PENDING até o fim do mês,
+inclusive atrasadas, e regras mensais sem ocorrência vinculada no mês.
+Parcelas geradas já são transações e não são contadas novamente. Regras com
+ocorrência vinculada, inclusive cancelada, não adicionam previsão virtual.
+
+Dinheiro livre = saldo − compromissos − margem. Projeção de saldo no fim do mês
+= saldo + receitas previstas − compromissos. A margem é apresentada separadamente
+na projeção após margem; não é tratada como gasto. Não há estimativa de gastos
+variáveis futuros. Poupança efetiva retorna null: não pode ser deduzida do resultado.
+Planos de parcelas ainda não gerados não entram nos compromissos. Categorias
+sem classe são exibidas como não classificadas. Nenhum dado real é importado aqui.
