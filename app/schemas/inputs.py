@@ -51,6 +51,8 @@ class TransactionCreate(Input):
     source: Literal["CHATGPT", "MANUAL", "SYSTEM"] = "MANUAL"
     notes: str | None = None
     idempotency_key: Annotated[str, Field(min_length=1, max_length=200)]
+    tags: list[UUID] = Field(default_factory=list, max_length=100)
+    recurrence_id: UUID | None = None
     force: bool = False
 
 

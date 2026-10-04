@@ -102,7 +102,7 @@ class Ledger:
         self.connection.execute(
             text("SELECT pg_advisory_xact_lock(hashtextextended(:u, 0))"), {"u": str(self.user_id)}
         )
-        data = payload.model_dump(exclude={"idempotency_key", "force"})
+        data = payload.model_dump(exclude={"idempotency_key", "force", "tags"})
         digest = hashlib.sha256(payload.model_dump_json(exclude={"force"}).encode()).hexdigest()
         requests = self.table("idempotency_requests")
         prior = (
@@ -120,6 +120,13 @@ class Ledger:
             return self.get("transactions", prior["transaction_id"])
         self.reference("accounts", payload.account_id)
         self.reference("categories", payload.category_id)
+        self.reference("recurring_transactions", payload.recurrence_id)
+        if payload.recurrence_id:
+            rule = self.get("recurring_transactions", payload.recurrence_id)
+            if rule["account_id"] != payload.account_id or rule["type"] != payload.type:
+                raise HTTPException(422, "Recurrence account or type mismatch")
+        for tag_id in payload.tags:
+            self.reference("tags", tag_id)
         transactions = self.table("transactions")
         matches = self.connection.execute(
             select(transactions).where(
@@ -149,6 +156,14 @@ class Ledger:
                     },
                 )
         result = self.create("transactions", data)
+        for tag_id in set(payload.tags):
+            self.connection.execute(
+                insert(self.table("transaction_tags")).values(
+                    transaction_id=result["id"], tag_id=tag_id
+                )
+            )
+        if payload.tags:
+            self.audit("transaction_tags", result["id"], "CREATE", None, {"tags": payload.tags})
         self.connection.execute(
             insert(requests).values(
                 user_id=self.user_id,
