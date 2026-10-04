@@ -43,12 +43,15 @@ def monthly_dashboard(
         day = row["transaction_date"]
         amount = row["amount"]
         kind = row["type"]
+        technical_adjustment = (
+            categories.get(row["category_id"], {}).get("name") == "Ajuste de Saldo"
+        )
         if row["status"] == "POSTED" and day <= as_of:
             if kind in {"INCOME", "YIELD", "REFUND", "ADJUSTMENT"}:
                 balance += amount
             elif kind in {"EXPENSE", "CARD_PAYMENT"}:
                 balance -= amount
-            if day >= start:
+            if day >= start and not technical_adjustment:
                 if kind in {"INCOME", "YIELD"}:
                     income += amount
                 elif kind in {"EXPENSE", "REFUND"}:
@@ -57,7 +60,7 @@ def monthly_dashboard(
                     category = categories.get(row["category_id"], {})
                     classes[category.get("expense_class") or "UNCLASSIFIED"] += net
                     totals[row["category_id"]] = totals.get(row["category_id"], ZERO) + net
-        elif row["status"] == "PENDING" and day <= end:
+        elif row["status"] == "PENDING" and day <= end and not technical_adjustment:
             if kind == "EXPENSE":
                 pending_expense += amount
             elif kind in {"INCOME", "YIELD", "REFUND"}:

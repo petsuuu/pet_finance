@@ -71,3 +71,33 @@ def test_dashboard_distinguishes_balance_result_and_commitments(client: TestClie
         ).status_code
         == 422
     )
+
+
+def test_technical_adjustment_changes_balance_without_consumption(client: TestClient) -> None:
+    account = client.post(
+        "/api/v1/accounts", json={"name": "Adjustment", "opening_balance": "100"}
+    ).json()["id"]
+    category = client.post("/api/v1/categories", json={"name": "Ajuste de Saldo"}).json()["id"]
+    assert (
+        client.post(
+            "/api/v1/transactions",
+            json={
+                "type": "EXPENSE",
+                "status": "POSTED",
+                "description": "Technical balance correction",
+                "amount": "25",
+                "account_id": account,
+                "category_id": category,
+                "transaction_date": "2026-10-04",
+                "idempotency_key": "technical-adjustment",
+            },
+        ).status_code
+        == 201
+    )
+    result = client.get(
+        "/api/v1/dashboard/monthly", params={"year": 2026, "month": 10, "as_of": "2026-10-04"}
+    ).json()
+    assert result["current_balance"] == "75.00"
+    assert result["expense_month"] == "0"
+    assert result["month_result"] == "0"
+    assert result["top_categories"] == []

@@ -47,3 +47,13 @@ def test_import_preview_commit_reimport_and_reconciliation(client: TestClient) -
     assert len(client.get("/api/v1/transactions").json()) == 1
     invalid = {**source, "transactions": [{"id": "bad"}]}
     assert client.post("/api/v1/imports/clofin/preview", json=invalid).status_code == 422
+
+
+def test_legacy_category_resolves_only_unique_name() -> None:
+    from app.services.imports import Snapshot, normalize
+
+    data = snapshot()
+    body = Snapshot.model_validate(data)
+    body.transactions[0]["category"] = {"id": str(uuid4()), "name": "Imported food"}
+    rows = normalize(body)
+    assert rows[0]["category_id"] == body.categories[0]["id"]
