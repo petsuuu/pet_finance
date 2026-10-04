@@ -138,3 +138,23 @@ na projeção após margem; não é tratada como gasto. Não há estimativa de g
 variáveis futuros. Poupança efetiva retorna null: não pode ser deduzida do resultado.
 Planos de parcelas ainda não gerados não entram nos compromissos. Categorias
 sem classe são exibidas como não classificadas. Nenhum dado real é importado aqui.
+
+## Sprint 5: importação CloFin
+
+`POST /api/v1/imports/clofin/preview` valida um snapshot JSON com accounts,
+categories e transactions das listagens CloFin, sem gravar.
+`POST /api/v1/imports/clofin/commit` importa atomicamente e registra um lote.
+`GET /api/v1/imports/{batch_id}/reconciliation` compara valores, tipos, status,
+datas, contas e categorias. Reimportar IDs iguais não duplica; alterações da
+origem geram conflito e exigem conciliação explícita. Não remove dados existentes.
+
+O importador suporta BRL, receitas/despesas/estornos/rendimentos e ajustes
+positivos. Transferências, cartões, ajustes negativos ou referências ausentes
+são bloqueados. Contas são mapeadas por nome e saldo inicial; categorias por
+nome e hierarquia. Recorrências/parcelamentos descritos em notas são preservados
+como transações, sem inferir regras ou gerar novas parcelas. Notas preservam
+as marcações originais; extração de tags a partir de texto exige revisão.
+
+Use somente banco privado. O snapshot real não deve entrar no GitHub público.
+A conciliação por lote não prova saldo global nem migração completa; valide
+saldo de cada conta e referências antes de mudar a fonte oficial.
