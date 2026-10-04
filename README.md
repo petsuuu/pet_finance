@@ -82,3 +82,22 @@ existem no schema, mas não possuem endpoints ou motores implementados.
 Recorrências e parcelas (PF-301/PF-303), transferências, tags, dashboard,
 importação conciliada CloFin, MCP e backups restauráveis. Nenhum dado real ou
 segredo deve entrar no repositório público. A planilha enviada não foi importada.
+
+## Sprint 2: planos financeiros
+
+`POST /api/v1/recurrences` e `GET /api/v1/recurrences` criam/listam regras
+mensais. Campos: description, account_id, expected_amount, due_day (1–31),
+start_date; category_id, end_date, tolerance_amount e notes são opcionais.
+`PATCH /api/v1/recurrences/{id}` altera valor, vencimento e atividade.
+Dias inexistentes são ajustados ao último dia do mês, incluindo anos bissextos.
+A próxima ocorrência é calculada a partir da data inicial e recalculada a partir
+ da ocorrência existente quando o vencimento muda.
+
+`POST /api/v1/installments` e `GET /api/v1/installments` criam/listam planos
+com description, account_id, installment_amount, total_installments e
+first_installment_date. O total é calculado com Decimal. Listagens aceitam limit/offset.
+
+Ambos exigem Bearer token, validam referências e geram audit log. Criar planos
+não gera transações nem altera saldo. Geração de parcelas e auditoria diária
+ficam para a sprint 3. Idempotência e detecção de duplicidade de transações
+já estão implementadas na sprint 1; criação de planos não é idempotente.
