@@ -135,7 +135,8 @@ def schedules_router(dependency: Any) -> APIRouter:
                         select(table).where(
                             table.c.user_id == service.user_id,
                             table.c.recurrence_id == rule["id"],
-                            table.c.transaction_date == due,
+                            table.c.transaction_date >= due.replace(day=1),
+                            table.c.transaction_date < month_date(due, 1, 1),
                             table.c.status != "CANCELLED",
                         )
                     ).mappings()

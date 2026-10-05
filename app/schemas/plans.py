@@ -45,6 +45,15 @@ class RecurrencePatch(Input):
         return self
 
 
+class RecurrenceSetup(RecurrenceCreate):
+    transaction_ids: Annotated[list[UUID], Field(min_length=1, max_length=120)]
+
+
+class RecurrenceGenerate(Input):
+    start_date: date
+    end_date: date
+
+
 class InstallmentCreate(Input):
     description: Name
     installment_amount: Annotated[Money, Field(gt=0)]

@@ -204,3 +204,17 @@ to disable the integration without modifying financial data.
 Future full snapshot reconciliation still compares against the original imported
 values: intentional edits such as a payment update can report differences from
 that historical snapshot. Do not reimport it to undo those edits.
+
+### Recorrências pelo MCP
+
+`setup_recurrence` cria uma regra mensal e vincula explicitamente os IDs de lançamentos já
+existentes (um por mês). Consulte conta, categoria, valores e datas antes de configurar;
+use `end_date` para respeitar o período de continuidade confirmado. Repetir a mesma
+configuração com os mesmos IDs reutiliza a regra. Os pagamentos existentes mantêm seus
+valores, status e datas reais, inclusive pagamentos antecipados dentro do mês.
+
+`generate_recurrence` cria somente ocorrências pendentes que faltam no período solicitado
+(até 366 dias), respeitando início/fim da regra. Meses vinculados, inclusive cancelados,
+não são gerados novamente. A operação não cria um cron: execute-a pelo conector ou por
+um agendamento autenticado. Após atualizar o servidor, atualize as ferramentas do plugin
+Pet Finance para carregar essas duas operações.

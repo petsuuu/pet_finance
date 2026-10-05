@@ -18,6 +18,7 @@ from sqlalchemy import Engine
 
 from app.core.config import Settings
 from app.schemas.inputs import TransactionCreate, TransactionPatch
+from app.schemas.plans import RecurrenceGenerate, RecurrenceSetup
 from app.services.oauth import OwnerOAuth
 
 
@@ -117,6 +118,31 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
             "recurrences": await rest("GET", "/recurrences"),
             "installments": await rest("GET", "/installments"),
         }
+
+    @server.tool(annotations=write, meta=meta)
+    async def setup_recurrence(body: RecurrenceSetup) -> dict[str, Any]:
+        """Configure uma recorrência mensal e vincule IDs de lançamentos existentes confirmados.
+
+        Consulte lançamentos primeiro. Vincule apenas a mesma obrigação, um por mês;
+        preserve datas/valores pagos. Não inclua parcelamentos. Respeite limites de continuidade
+        confirmados pelo usuário. Repetir o mesmo corpo não cria outra regra.
+        """
+        result: dict[str, Any] = await rest(
+            "POST", "/recurrences/setup", body.model_dump(mode="json")
+        )
+        return result
+
+    @server.tool(annotations=write, meta=meta)
+    async def generate_recurrence(identity: UUID, body: RecurrenceGenerate) -> dict[str, Any]:
+        """Gere previsões PENDING no período confirmado, no máximo 366 dias.
+
+        Meses já vinculados são preservados, inclusive pagamentos antecipados e cancelamentos.
+        A geração é idempotente; não confirma pagamentos nem executa agendamento por si só.
+        """
+        result: dict[str, Any] = await rest(
+            "POST", f"/recurrences/{identity}/generate", body.model_dump(mode="json")
+        )
+        return result
 
     @server.tool(annotations=write, meta=meta)
     async def create_transaction(body: TransactionCreate) -> dict[str, Any]:

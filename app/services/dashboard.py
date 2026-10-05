@@ -67,7 +67,9 @@ def monthly_dashboard(
                 pending_income += amount
     # Linked transactions already represent the occurrence, including cancellation.
     represented = {
-        (r["recurrence_id"], r["transaction_date"]) for r in transactions if r["recurrence_id"]
+        (r["recurrence_id"], r["transaction_date"].year, r["transaction_date"].month)
+        for r in transactions
+        if r["recurrence_id"]
     }
     virtual_expense = virtual_income = ZERO
     for rule in rules:
@@ -76,7 +78,7 @@ def monthly_dashboard(
         due = month_date(start, 0, rule["due_day"])
         if due < rule["start_date"] or (rule["end_date"] and due > rule["end_date"]):
             continue
-        if (rule["id"], due) in represented:
+        if (rule["id"], due.year, due.month) in represented:
             continue
         if rule["type"] == "EXPENSE":
             virtual_expense += rule["expected_amount"]
