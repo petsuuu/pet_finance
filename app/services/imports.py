@@ -246,7 +246,11 @@ def imports_router(dependency: Any) -> APIRouter:
         destination = [dict(r) for r in pairs]
         differences = sum(
             any(
-                str(r[k]) != str(r["raw_payload"][k])
+                (
+                    Decimal(str(r[k])) != Decimal(str(r["raw_payload"][k]))
+                    if k == "amount"
+                    else str(r[k]) != str(r["raw_payload"][k])
+                )
                 for k in [
                     "amount",
                     "type",
