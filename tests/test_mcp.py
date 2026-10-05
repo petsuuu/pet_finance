@@ -144,7 +144,7 @@ def test_browser_form_origin_and_csrf_cookie(mcp_client: TestClient) -> None:
             def forward(route: Route) -> None:
                 request = route.request
                 if urlsplit(request.url).netloc != urlsplit(ORIGIN).netloc:
-                    route.fulfill(status=200, body="Connected")
+                    route.fulfill(status=200, content_type="text/html", body="Connected")
                     return
                 headers = request.all_headers()
                 # Only the real browser's Cookie header can satisfy the CSRF check.
@@ -179,6 +179,8 @@ def test_browser_form_origin_and_csrf_cookie(mcp_client: TestClient) -> None:
             assert observed["cookie"] is True
             assert observed["origin"] == ("null" if old_policy else ORIGIN)
             assert observed["status"] == (400 if old_policy else 303)
+            if not old_policy:
+                assert page.url.startswith(CALLBACK + "?")
             context.close()
         browser.close()
 
