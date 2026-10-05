@@ -4,8 +4,9 @@ from secrets import compare_digest
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 
@@ -32,9 +33,15 @@ def create_app(settings: Settings) -> FastAPI:
     engine = build_engine(settings.database_url)
     api = FastAPI(title="Pet Finance", version="0.1.0")
 
-    def authorize(authorization: Annotated[str | None, Header()] = None) -> None:
-        if not settings.api_token or not compare_digest(
-            authorization or "", f"Bearer {settings.api_token}"
+    bearer = HTTPBearer(auto_error=False)
+
+    def authorize(
+        credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
+    ) -> None:
+        if (
+            not settings.api_token
+            or credentials is None
+            or not compare_digest(credentials.credentials, settings.api_token)
         ):
             raise HTTPException(401, "Invalid token")
 
