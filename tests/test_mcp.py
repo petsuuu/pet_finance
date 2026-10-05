@@ -54,6 +54,7 @@ def grant(client: TestClient) -> tuple[str, str]:
         },
     )
     assert page.status_code == 200
+    assert page.headers["referrer-policy"] == "strict-origin"
     assert PASSWORD not in page.text
     login = re.search(r'name="login" value="([^"]+)"', page.text)
     assert login
@@ -157,6 +158,8 @@ def test_oauth_callback_and_csrf(mcp_client: TestClient) -> None:
     login = re.search(r'name="login" value="([^"]+)"', page.text)
     assert login
     data = {"login": login[1], "password": PASSWORD}
+    for headers in [{}, {"Origin": "null"}]:
+        assert mcp_client.post("/oauth/approve", data=data, headers=headers).status_code == 400
     assert (
         mcp_client.post(
             "/oauth/approve", data=data, headers={"Origin": "https://evil.example"}

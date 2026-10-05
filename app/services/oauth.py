@@ -248,7 +248,9 @@ class OwnerOAuth:
                     "X-Frame-Options": "DENY",
                     "Content-Security-Policy": "default-src 'none'; form-action 'self'; "
                     "frame-ancestors 'none'; base-uri 'none'",
-                    "Referrer-Policy": "no-referrer",
+                    # HTML form POSTs under no-referrer send Origin: null.
+                    # Preserve the same-origin proof without leaking the login query.
+                    "Referrer-Policy": "strict-origin",
                     "X-Content-Type-Options": "nosniff",
                 },
             )
