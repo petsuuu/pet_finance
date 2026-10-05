@@ -71,9 +71,7 @@ def test_import_integer_amount_reconciles(client: TestClient) -> None:
     assert report["different_rows"] == 0
     assert report["reconciled"] is True
     transaction = client.get("/api/v1/transactions").json()[0]["id"]
-    response = client.patch(
-        f"/api/v1/transactions/{transaction}", json={"amount": "51.00"}
-    )
+    response = client.patch(f"/api/v1/transactions/{transaction}", json={"amount": "51.00"})
     assert response.status_code == 200
     report = client.get(f"/api/v1/imports/{batch}/reconciliation").json()
     assert report["different_rows"] == 1
