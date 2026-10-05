@@ -146,7 +146,9 @@ class Ledger:
             score += 0.1 if candidate["category_id"] == payload.category_id else 0
             score += 0.05 if candidate["account_id"] == payload.account_id else 0
             warning = warning or score >= 0.75
-            if score >= 0.90 and not payload.force:
+            # Shared date, value and category are common for separate obligations.
+            # Require a near-identical description before blocking the write.
+            if score >= 0.90 and similarity >= 0.90 and not payload.force:
                 raise HTTPException(
                     409,
                     {

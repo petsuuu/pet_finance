@@ -57,6 +57,30 @@ def test_idempotency_and_duplicates(client: TestClient) -> None:
     assert len(client.get("/api/v1/transactions").json()) == 2
 
 
+def test_distinct_allowances_and_near_identical_duplicates(client: TestClient) -> None:
+    payload = {**setup(client), "description": "Mesada Martin — recorrência"}
+    first = client.post("/api/v1/transactions", json=payload)
+    assert first.status_code == 201
+    second_payload = {
+        **payload,
+        "description": "Mesada Luigi — recorrência",
+        "idempotency_key": "allowance-luigi",
+    }
+    second = client.post("/api/v1/transactions", json=second_payload)
+    assert second.status_code == 201
+    assert second.json()["id"] != first.json()["id"]
+    retry = client.post("/api/v1/transactions", json=second_payload)
+    assert retry.json()["id"] == second.json()["id"]
+    for description in ["Mesada Luigi — recorrência", "Mesada Luig — recorrência"]:
+        duplicate = client.post(
+            "/api/v1/transactions",
+            json={**second_payload, "description": description, "idempotency_key": description},
+        )
+        assert duplicate.status_code == 409
+        assert duplicate.json()["detail"]["candidate_id"] == second.json()["id"]
+    assert len(client.get("/api/v1/transactions").json()) == 2
+
+
 def test_concurrent_idempotency(client: TestClient) -> None:
     payload = setup(client)
     with ThreadPoolExecutor(max_workers=4) as executor:
