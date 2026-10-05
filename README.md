@@ -207,7 +207,7 @@ that historical snapshot. Do not reimport it to undo those edits.
 
 ### Recorrências pelo MCP
 
-`setup_recurrence` cria uma regra mensal e vincula explicitamente os IDs de lançamentos já
+`setup_recurrence` cria uma regra mensal ou anual (`frequency=YEARLY`, `month_of_year` obrigatório) e vincula explicitamente os IDs de lançamentos já
 existentes (um por mês). Consulte conta, categoria, valores e datas antes de configurar;
 use `end_date` para respeitar o período de continuidade confirmado. Repetir a mesma
 configuração com os mesmos IDs reutiliza a regra. Os pagamentos existentes mantêm seus
@@ -218,3 +218,11 @@ valores, status e datas reais, inclusive pagamentos antecipados dentro do mês.
 não são gerados novamente. A operação não cria um cron: execute-a pelo conector ou por
 um agendamento autenticado. Após atualizar o servidor, atualize as ferramentas do plugin
 Pet Finance para carregar essas duas operações.
+
+
+`update_recurrence` edita a regra existente por ID: use `end_date` para estender o
+horizonte confirmado ou `active=false` para interromper novas gerações. Mantém
+vínculos, datas e valores dos lançamentos existentes; previsões já registradas não
+são canceladas automaticamente. A edição é serializada com a geração. Regras anuais
+só geram e entram na projeção no mês de renovação. Atualize as ferramentas do plugin
+após publicar para carregar a edição e o novo esquema de configuração.

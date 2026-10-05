@@ -14,7 +14,8 @@ from app.schemas.plans import (
     RecurrenceSetup,
 )
 from app.services.ledger import Ledger
-from app.services.recurrences import generate_recurrence, setup_recurrence
+from app.services.occurrences import next_occurrence
+from app.services.recurrences import generate_recurrence, lock, setup_recurrence
 
 
 def next_monthly(start: date, day: int) -> date:
@@ -54,10 +55,8 @@ def plans_router(dependency: Any) -> APIRouter:
         service.reference("accounts", body.account_id)
         service.reference("categories", body.category_id)
         data = body.model_dump()
-        occurrence = next_monthly(body.start_date, body.due_day)
-        data["next_due_date"] = (
-            occurrence if not body.end_date or occurrence <= body.end_date else None
-        )
+        occurrence = next_occurrence(data, body.start_date)
+        data["next_due_date"] = occurrence
         return service.create("recurring_transactions", data)
 
     @router.post("/recurrences/setup")
@@ -74,6 +73,7 @@ def plans_router(dependency: Any) -> APIRouter:
     def patch_recurrence(
         identity: UUID, body: RecurrencePatch, service: Ledger = Depends(dependency)
     ) -> dict[str, Any]:
+        lock(service)
         before = service.get("recurring_transactions", identity)
         data = body.model_dump(exclude_unset=True)
         merged = {**before, **data}
@@ -81,12 +81,8 @@ def plans_router(dependency: Any) -> APIRouter:
             raise HTTPException(422, "end_date precedes start_date")
         # Preserve the existing scheduling anchor; creation does not generate payments.
         anchor = before["next_due_date"] or before["start_date"]
-        occurrence = next_monthly(anchor, merged["due_day"])
-        data["next_due_date"] = (
-            occurrence
-            if merged["active"] and (not merged["end_date"] or occurrence <= merged["end_date"])
-            else None
-        )
+        occurrence = next_occurrence(merged, anchor)
+        data["next_due_date"] = occurrence
         return service.patch("recurring_transactions", identity, data)
 
     @router.get("/installments")
