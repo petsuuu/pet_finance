@@ -28,4 +28,5 @@ jobs:
       - run: ruff check .
       - run: ruff format --check .
       - run: mypy app migrations tests
+      - run: python -m playwright install --with-deps chromium
       - run: pytest -q

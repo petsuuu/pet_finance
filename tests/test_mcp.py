@@ -3,10 +3,11 @@ import hashlib
 import re
 from collections.abc import Iterator
 from typing import Any
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, urlencode, urlsplit
 
 import pytest
 from fastapi.testclient import TestClient
+from playwright.sync_api import Route, sync_playwright
 from sqlalchemy import text
 
 from app.core.config import Settings
@@ -110,6 +111,76 @@ def test_oauth_discovery_and_authentication_required(mcp_client: TestClient) -> 
     assert response.status_code == 401
     assert "oauth-protected-resource/mcp" in response.headers["www-authenticate"]
     assert mcp_client.get("/api/v1/accounts").status_code == 401
+
+
+def test_browser_form_origin_and_csrf_cookie(mcp_client: TestClient) -> None:
+    """Replay HTTPS requests locally: Chromium supplies real Origin and secure cookies.
+
+    No requests leave the test process, and only fictional test credentials are used.
+    Reproduce the previous policy failure, then exercise the corrected form.
+    """
+    identity = mcp_client.post("/oauth/register", json={"redirect_uris": [CALLBACK]}).json()[
+        "client_id"
+    ]
+    authorize_url = (
+        ORIGIN
+        + "/oauth/authorize?"
+        + urlencode(
+            {
+                "client_id": identity,
+                "redirect_uri": CALLBACK,
+                "resource": ORIGIN + "/mcp",
+                "response_type": "code",
+                "code_challenge_method": "S256",
+                "code_challenge": CHALLENGE,
+            }
+        )
+    )
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        for old_policy in (True, False):
+            observed: dict[str, Any] = {}
+
+            def forward(route: Route) -> None:
+                request = route.request
+                if urlsplit(request.url).netloc != urlsplit(ORIGIN).netloc:
+                    route.fulfill(status=200, body="Connected")
+                    return
+                headers = request.all_headers()
+                # Only the real browser's Cookie header can satisfy the CSRF check.
+                mcp_client.cookies.clear()
+                response = mcp_client.request(
+                    request.method,
+                    request.url,
+                    headers=headers,
+                    content=request.post_data,
+                    follow_redirects=False,
+                )
+                response_headers = dict(response.headers)
+                if "/oauth/authorize?" in request.url and old_policy:
+                    response_headers["referrer-policy"] = "no-referrer"
+                if request.method == "POST":
+                    observed.update(
+                        origin=headers.get("origin"),
+                        status=response.status_code,
+                        cookie=bool(headers.get("cookie")),
+                    )
+                route.fulfill(
+                    status=response.status_code, headers=response_headers, body=response.content
+                )
+
+            context = browser.new_context()
+            context.route("**/*", forward)
+            page = context.new_page()
+            page.goto(authorize_url)
+            page.get_by_label("Senha de conexão").fill(PASSWORD)
+            with page.expect_navigation():
+                page.get_by_role("button", name="Autorizar conexão").click()
+            assert observed["cookie"] is True
+            assert observed["origin"] == ("null" if old_policy else ORIGIN)
+            assert observed["status"] == (400 if old_policy else 303)
+            context.close()
+        browser.close()
 
 
 @pytest.mark.parametrize(
