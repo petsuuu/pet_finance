@@ -6,8 +6,15 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 
-from app.schemas.plans import InstallmentCreate, RecurrenceCreate, RecurrencePatch
+from app.schemas.plans import (
+    InstallmentCreate,
+    RecurrenceCreate,
+    RecurrenceGenerate,
+    RecurrencePatch,
+    RecurrenceSetup,
+)
 from app.services.ledger import Ledger
+from app.services.recurrences import generate_recurrence, setup_recurrence
 
 
 def next_monthly(start: date, day: int) -> date:
@@ -52,6 +59,16 @@ def plans_router(dependency: Any) -> APIRouter:
             occurrence if not body.end_date or occurrence <= body.end_date else None
         )
         return service.create("recurring_transactions", data)
+
+    @router.post("/recurrences/setup")
+    def setup_rule(body: RecurrenceSetup, service: Ledger = Depends(dependency)) -> dict[str, Any]:
+        return setup_recurrence(service, body)
+
+    @router.post("/recurrences/{identity}/generate")
+    def generate_rule(
+        identity: UUID, body: RecurrenceGenerate, service: Ledger = Depends(dependency)
+    ) -> dict[str, Any]:
+        return generate_recurrence(service, identity, body.start_date, body.end_date)
 
     @router.patch("/recurrences/{identity}")
     def patch_recurrence(

@@ -341,7 +341,7 @@ def test_mcp_tools_reuse_ledger_idempotency_and_payment_updates(mcp_client: Test
     )
     assert initialized.status_code == 200
     tools = rpc(mcp_client, token, "tools/list", {}).json()["result"]["tools"]
-    assert len(tools) == 8
+    assert len(tools) == 10
     assert all(t["_meta"]["securitySchemes"][0]["type"] == "oauth2" for t in tools)
     auth = {"Authorization": "Bearer test-token"}
     account = mcp_client.post(
@@ -399,3 +399,38 @@ def test_mcp_tools_reuse_ledger_idempotency_and_payment_updates(mcp_client: Test
         },
     ).json()["result"]["structuredContent"]["items"][0]["current_balance"]
     assert balance == "-48.50"
+    configured = rpc(
+        mcp_client,
+        token,
+        "tools/call",
+        {
+            "name": "setup_recurrence",
+            "arguments": {
+                "body": {
+                    "description": "Fictional bill",
+                    "expected_amount": "50.00",
+                    "account_id": account,
+                    "category_id": category,
+                    "due_day": 5,
+                    "start_date": "2026-10-01",
+                    "transaction_ids": [transaction],
+                }
+            },
+        },
+    ).json()["result"]
+    assert not configured.get("isError")
+    rule_id = configured["structuredContent"]["recurrence"]["id"]
+    generated = rpc(
+        mcp_client,
+        token,
+        "tools/call",
+        {
+            "name": "generate_recurrence",
+            "arguments": {
+                "identity": rule_id,
+                "body": {"start_date": "2026-10-01", "end_date": "2026-11-30"},
+            },
+        },
+    ).json()["result"]
+    assert not generated.get("isError")
+    assert generated["structuredContent"]["created_count"] == 1
