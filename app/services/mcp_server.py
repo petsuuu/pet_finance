@@ -18,7 +18,8 @@ from sqlalchemy import Engine
 
 from app.core.config import Settings
 from app.schemas.inputs import TransactionCreate, TransactionPatch
-from app.schemas.plans import RecurrenceGenerate, RecurrencePatch, RecurrenceSetup
+from app.schemas.merchants import MerchantPatch, MerchantSetup
+from app.schemas.plans import RecurrenceCancel, RecurrenceGenerate, RecurrencePatch, RecurrenceSetup
 from app.services.oauth import OwnerOAuth
 
 
@@ -160,11 +161,67 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         return result
 
     @server.tool(annotations=write, meta=meta)
+    async def cancel_recurrence(identity: UUID, body: RecurrenceCancel) -> dict[str, Any]:
+        """Cancele uma recorrência a partir da data indicada, com prévia por padrão.
+
+        Consulte regras antes. preview=true mostra pendências e alterações sem gravar.
+        Após o usuário confirmar o cancelamento concreto, use preview=false com a mesma data.
+        Cancela apenas PENDING vinculados desde a data; preserva pagos, atrasos anteriores,
+        IDs e auditoria. Não usar para parcelamentos. A regra termina antes da data indicada.
+        """
+        result: dict[str, Any] = await rest(
+            "POST", f"/recurrences/{identity}/cancel", body.model_dump(mode="json")
+        )
+        return result
+
+    @server.tool(annotations=read, meta=meta)
+    async def list_merchants(limit: int = 100, offset: int = 0) -> dict[str, Any]:
+        """Consulte estabelecimentos cadastrados e categorias habituais, com paginação."""
+        return {"items": await rest("GET", "/merchants", params={"limit": limit, "offset": offset})}
+
+    @server.tool(annotations=read, meta=meta)
+    async def resolve_merchant(raw_name: str) -> dict[str, Any]:
+        """Localize o nome do cartão/Pix por alias cadastrado, sem adivinhar por similaridade.
+
+        Categoria habitual é sugestão: o produto comprado pode exigir outra categoria.
+        Sem correspondência, pesquise apenas nome e cidade ou pergunte ao usuário.
+        Nunca deduza o vendedor a partir de uma intermediadora genérica.
+        """
+        result: dict[str, Any] = await rest(
+            "GET", "/merchants/resolve", params={"raw_name": raw_name}
+        )
+        return result
+
+    @server.tool(annotations=write, meta=meta)
+    async def setup_merchant(body: MerchantSetup) -> dict[str, Any]:
+        """Cadastre nome conhecido e aliases confirmados do cartão/Pix.
+
+        Consulte resolve_merchant e categorias primeiro. Repetição não duplica o cadastro.
+        Não cadastre intermediadoras genéricas como aliases de um único vendedor.
+        Não altera lançamentos antigos; novos gastos podem usar merchant_id retornado.
+        """
+        result: dict[str, Any] = await rest(
+            "POST", "/merchants/setup", body.model_dump(mode="json")
+        )
+        return result
+
+    @server.tool(annotations=write, meta=meta)
+    async def update_merchant(identity: UUID, body: MerchantPatch) -> dict[str, Any]:
+        """Altere a categoria habitual confirmada; lançamentos antigos permanecem iguais."""
+        result: dict[str, Any] = await rest(
+            "PATCH", f"/merchants/{identity}", body.model_dump(mode="json", exclude_unset=True)
+        )
+        return result
+
+    @server.tool(annotations=write, meta=meta)
     async def create_transaction(body: TransactionCreate) -> dict[str, Any]:
         """Registre receita ou despesa solicitada pelo usuário, com categoria e conta verificadas.
 
         Reuse idempotency_key em tentativas da mesma operação. Se houver aviso de duplicidade,
         consulte o candidato e esclareça com o usuário. Não use force.
+        Para estabelecimento confirmado, informe merchant_id obtido por resolve_merchant.
+        Em despesas sem category_id usa a categoria habitual ativa; category_id explícito
+        prevalece quando o produto comprado exige outra classificação.
         """
         if body.force:
             raise ValueError("MCP does not permit bypassing duplicate checks")

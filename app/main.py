@@ -25,7 +25,9 @@ from app.schemas.inputs import (
 from app.services.dashboard import dashboard_router
 from app.services.imports import imports_router
 from app.services.ledger import Ledger
+from app.services.merchants import merchants_router
 from app.services.plans import plans_router
+from app.services.recurrences import lock
 from app.services.schedules import schedules_router
 
 
@@ -160,6 +162,7 @@ def create_app(settings: Settings) -> FastAPI:
     def patch_transaction(
         identity: UUID, body: TransactionPatch, service: Service
     ) -> dict[str, Any]:
+        lock(service)
         if service.get("transactions", identity)["status"] == "CANCELLED":
             raise HTTPException(409, "Cancelled transactions cannot be edited")
         service.reference("categories", body.category_id)
@@ -167,6 +170,7 @@ def create_app(settings: Settings) -> FastAPI:
 
     @api.post("/api/v1/transactions/{identity}/cancel")
     def cancel_transaction(identity: UUID, service: Service) -> dict[str, Any]:
+        lock(service)
         before = service.get("transactions", identity)
         if before["status"] == "CANCELLED":
             return before
@@ -190,6 +194,7 @@ def create_app(settings: Settings) -> FastAPI:
     api.include_router(imports_router(ledger))
     api.include_router(dashboard_router(ledger))
     api.include_router(plans_router(ledger))
+    api.include_router(merchants_router(ledger))
     api.include_router(schedules_router(ledger))
     if settings.mcp_public_url:
         from app.services.mcp_server import install_mcp

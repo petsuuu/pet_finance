@@ -103,7 +103,10 @@ class Ledger:
             text("SELECT pg_advisory_xact_lock(hashtextextended(:u, 0))"), {"u": str(self.user_id)}
         )
         data = payload.model_dump(exclude={"idempotency_key", "force", "tags"})
-        digest = hashlib.sha256(payload.model_dump_json(exclude={"force"}).encode()).hexdigest()
+        excluded = {"force"}
+        if payload.merchant_id is None:
+            excluded.add("merchant_id")
+        digest = hashlib.sha256(payload.model_dump_json(exclude=excluded).encode()).hexdigest()
         requests = self.table("idempotency_requests")
         prior = (
             self.connection.execute(
@@ -119,6 +122,11 @@ class Ledger:
                 raise HTTPException(409, "Idempotency key already used with another payload")
             return self.get("transactions", prior["transaction_id"])
         self.reference("accounts", payload.account_id)
+        self.reference("merchants", payload.merchant_id)
+        if payload.merchant_id and payload.category_id is None and payload.type == "EXPENSE":
+            merchant = self.get("merchants", payload.merchant_id)
+            data["category_id"] = merchant["default_category_id"]
+            self.reference("categories", data["category_id"])
         self.reference("categories", payload.category_id)
         self.reference("recurring_transactions", payload.recurrence_id)
         if payload.recurrence_id:
@@ -143,7 +151,7 @@ class Ledger:
                 None, payload.description.casefold(), candidate["description"].casefold()
             ).ratio()
             score = 0.65 + 0.2 * similarity
-            score += 0.1 if candidate["category_id"] == payload.category_id else 0
+            score += 0.1 if candidate["category_id"] == data["category_id"] else 0
             score += 0.05 if candidate["account_id"] == payload.account_id else 0
             warning = warning or score >= 0.75
             # Shared date, value and category are common for separate obligations.

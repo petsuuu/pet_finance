@@ -57,6 +57,11 @@ class RecurrenceGenerate(Input):
     end_date: date
 
 
+class RecurrenceCancel(Input):
+    effective_date: date
+    preview: bool = True
+
+
 class InstallmentCreate(Input):
     description: Name
     installment_amount: Annotated[Money, Field(gt=0)]

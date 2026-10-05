@@ -1,5 +1,30 @@
 # Pet Finance
 
+## Cancelamento com prévia e estabelecimentos
+
+`POST /api/v1/recurrences/{id}/cancel` recebe `effective_date` e `preview` (padrão
+`true`). A prévia lista as previsões pendentes afetadas sem gravar. Com `preview=false`,
+a regra termina antes da data indicada e os lançamentos PENDING vinculados desde essa
+data ficam CANCELLED. Pagamentos anteriores, inclusive antecipados, atrasos antes da
+data e parcelamentos são preservados. IDs e auditoria permanecem disponíveis. Não há
+exclusão física e repetir o cancelamento não cria novos lançamentos.
+
+`POST /api/v1/merchants/setup` cadastra nome conhecido, `aliases` confirmados do
+cartão/Pix e `default_category_id`. `GET /api/v1/merchants/resolve?raw_name=...`
+normaliza caixa, acentos e separadores e procura apenas aliases cadastrados. Não há
+classificação por aproximação ou busca externa automática. Um alias não pode pertencer
+a dois estabelecimentos do mesmo usuário. `PATCH /api/v1/merchants/{id}` altera a
+categoria habitual, sem alterar lançamentos anteriores.
+
+Novos lançamentos podem informar `merchant_id`. Para despesas sem categoria explícita,
+usa-se a categoria habitual ativa; uma categoria explícita sempre prevalece, pois o
+produto comprado pode diferir da atividade habitual. Intermediadoras genéricas devem
+ser esclarecidas antes de cadastrar aliases. As ferramentas MCP expõem a prévia de
+cancelamento, consulta, resolução, cadastro e atualização de estabelecimentos.
+
+Execute `alembic upgrade head` antes da versão com estas ferramentas. A migração
+0005 adiciona cadastro e vínculo opcional; não recategoriza dados antigos.
+
 API financeira pessoal em Python 3.12, FastAPI, SQLAlchemy 2 e PostgreSQL.
 Sprint 1: contas, categorias, transações e auditoria. O CloFin permanece a fonte
 oficial até conciliação e validação da migração.
