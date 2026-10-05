@@ -158,3 +158,49 @@ as marcações originais; extração de tags a partir de texto exige revisão.
 Use somente banco privado. O snapshot real não deve entrar no GitHub público.
 A conciliação por lote não prova saldo global nem migração completa; valide
 saldo de cada conta e referências antes de mudar a fonte oficial.
+
+
+## ChatGPT MCP connection (OAuth)
+
+MCP is disabled until both `MCP_PUBLIC_URL` and `MCP_LOGIN_PASSWORD` are configured.
+The existing REST API keeps using `API_TOKEN`. The MCP connection does not accept
+that token and never exposes it to ChatGPT.
+
+1. Deploy this version; Alembic creates `oauth_records` without changing financial rows.
+2. In Render → Environment, set `MCP_PUBLIC_URL` to your HTTPS origin (no trailing
+   path), e.g. `https://your-service.onrender.com`. Set `MCP_LOGIN_PASSWORD` to a
+   separate randomly generated secret of at least 24 characters. Save and redeploy.
+3. In ChatGPT → Plugins → Add → Create custom MCP server, use the name **Pet Finance**,
+   URL `https://your-service.onrender.com/mcp`, and **OAuth**.
+4. Use dynamic client registration (DCR) if the advanced settings offer a choice.
+   No client secret or client ID is entered manually. The server advertises DCR.
+5. Complete the OAuth login on the Pet Finance page using `MCP_LOGIN_PASSWORD`,
+   then authorize the finance scope (read, create, update). Never paste this password
+   or `API_TOKEN` into a conversation or the public repository.
+6. Test **list_accounts** and the monthly dashboard first. Verify the returned data
+   before requesting real writes. Tools are available only after authentication.
+
+Tools: `list_accounts`, `list_categories`, `list_tags`, `list_transactions`,
+`monthly_dashboard`, `list_recurring_and_installments`, `create_transaction`,
+`update_transaction`. No delete or duplicate-check bypass is exposed. Existing
+CloFin installments are transactions; migration does not automatically create
+recurrence rules or installment plans.
+
+The OAuth server is for the configured single owner (`USER_ID`), not a multiuser
+product. It supports ChatGPT HTTPS callbacks on `chatgpt.com` (the stable callback
+or `/connector/oauth/{callback_id}`); other clients require an explicit code change
+and review of their exact callback. Authorization uses S256 PKCE, browser-bound
+consent with CSRF and Origin checks, two-minute single-use codes, one-hour access
+tokens, and rotating refresh tokens valid for 30 days. Tokens are stored only as
+SHA-256 hashes in PostgreSQL. The login form and token responses use no-store.
+
+Client registration, authorization starts and login attempts are limited globally
+for this owner over five-minute windows. Login attempts are limited to 20; a flood
+can temporarily prevent login until the window expires. Tokens and registered
+clients survive restart. Changing `MCP_LOGIN_PASSWORD` invalidates all outstanding
+clients, codes and tokens; reconnect ChatGPT afterward. Clear both MCP variables
+to disable the integration without modifying financial data.
+
+Future full snapshot reconciliation still compares against the original imported
+values: intentional edits such as a payment update can report differences from
+that historical snapshot. Do not reimport it to undo those edits.

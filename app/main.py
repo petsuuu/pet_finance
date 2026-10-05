@@ -191,6 +191,10 @@ def create_app(settings: Settings) -> FastAPI:
     api.include_router(dashboard_router(ledger))
     api.include_router(plans_router(ledger))
     api.include_router(schedules_router(ledger))
+    if settings.mcp_public_url:
+        from app.services.mcp_server import install_mcp
+
+        install_mcp(api, settings, engine)
     return api
 
 
