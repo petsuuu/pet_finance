@@ -251,3 +251,16 @@ vínculos, datas e valores dos lançamentos existentes; previsões já registrad
 são canceladas automaticamente. A edição é serializada com a geração. Regras anuais
 só geram e entram na projeção no mês de renovação. Atualize as ferramentas do plugin
 após publicar para carregar a edição e o novo esquema de configuração.
+## Agenda mensal resumida
+
+`GET /api/v1/dashboard/agenda?year=2026&month=10&as_of=2026-10-05` reúne despesas
+avulsas, recorrências e parcelas numa lista por data, com totais de pagos, pendentes e
+atrasados, contas do dia e próximos sete dias. Pendências registradas de meses anteriores
+continuam visíveis. A ferramenta MCP `monthly_agenda` disponibiliza a mesma leitura.
+
+`recorded=false` e `missing_forecasts` identificam ocorrências esperadas que ainda não
+têm lançamento; a consulta não grava nada. Ocorrências vinculadas, inclusive pagas ou
+canceladas, impedem outra previsão na agenda. Estimativas ausentes são buscadas apenas
+no mês solicitado. Datas dos registros são as datas dos lançamentos, não um vencimento
+ou data de pagamento reconstruídos. Transferências, pagamentos de cartão e ajustes
+técnicos de saldo não entram nos totais de consumo.

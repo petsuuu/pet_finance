@@ -1,6 +1,36 @@
 from fastapi.testclient import TestClient
 
 
+def test_agenda_rest_read_only_and_date_validation(client: TestClient) -> None:
+    account = client.post("/api/v1/accounts", json={"name": "Agenda wallet"}).json()["id"]
+    client.post(
+        "/api/v1/recurrences",
+        json={
+            "description": "Agenda subscription",
+            "account_id": account,
+            "expected_amount": "20",
+            "due_day": 9,
+            "start_date": "2026-10-01",
+        },
+    )
+    params = {"year": 2026, "month": 10, "as_of": "2026-10-05"}
+    result = client.get("/api/v1/dashboard/agenda", params=params)
+    assert result.status_code == 200
+    assert result.json()["summary"]["pending"]["amount"] == "20.00"
+    assert result.json()["missing_forecasts"][0]["recorded"] is False
+    assert client.get("/api/v1/transactions").json() == []
+    assert (
+        client.get(
+            "/api/v1/dashboard/agenda",
+            params={
+                **params,
+                "as_of": "2026-11-01",
+            },
+        ).status_code
+        == 422
+    )
+
+
 def test_cancel_rest_preserves_paid_history_and_blocks_generation(client: TestClient) -> None:
     account = client.post("/api/v1/accounts", json={"name": "Test wallet"}).json()["id"]
     rule = client.post(

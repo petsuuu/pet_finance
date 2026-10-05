@@ -22,6 +22,7 @@ from app.schemas.inputs import (
     TransactionCreate,
     TransactionPatch,
 )
+from app.services.agenda import agenda_router
 from app.services.dashboard import dashboard_router
 from app.services.imports import imports_router
 from app.services.ledger import Ledger
@@ -193,6 +194,7 @@ def create_app(settings: Settings) -> FastAPI:
 
     api.include_router(imports_router(ledger))
     api.include_router(dashboard_router(ledger))
+    api.include_router(agenda_router(ledger))
     api.include_router(plans_router(ledger))
     api.include_router(merchants_router(ledger))
     api.include_router(schedules_router(ledger))

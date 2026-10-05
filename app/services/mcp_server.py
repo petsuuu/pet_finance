@@ -113,6 +113,20 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         return result
 
     @server.tool(annotations=read, meta=meta)
+    async def monthly_agenda(year: int, month: int, as_of: date | None = None) -> dict[str, Any]:
+        """Lista mensal de despesas pagas, pendentes e atrasadas, com recorrentes e parcelas.
+
+        Use summary para uma visão curta e items para a lista completa com data e status.
+        Inclui atrasos registrados de meses anteriores. recorded=false identifica uma estimativa
+        sem lançamento: não a apresente como conta já registrada ou paga. Consulte
+        missing_forecasts para auditoria. Não grava previsões nem confirma pagamentos.
+        Datas dos registros são transaction_date; não invente vencimentos ou datas de pagamento.
+        """
+        params = {k: str(v) for k, v in locals().items() if v is not None}
+        result: dict[str, Any] = await rest("GET", "/dashboard/agenda", params=params)
+        return result
+
+    @server.tool(annotations=read, meta=meta)
     async def list_recurring_and_installments() -> dict[str, Any]:
         """Consulte regras e planos. Parcelas migradas do CloFin estão também em transactions."""
         return {
