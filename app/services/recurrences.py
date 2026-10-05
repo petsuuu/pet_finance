@@ -1,4 +1,4 @@
-"""Adopt existing monthly payments and generate missing occurrences atomically."""
+"""Adopt existing monthly or yearly payments and generate missing occurrences atomically."""
 
 from datetime import date
 from typing import Any
@@ -10,6 +10,7 @@ from sqlalchemy import select, text
 from app.schemas.inputs import TransactionCreate
 from app.schemas.plans import RecurrenceSetup
 from app.services.ledger import Ledger
+from app.services.occurrences import next_occurrence, occurrence_dates
 from app.services.schedules import month_date
 
 
@@ -33,6 +34,10 @@ def setup_recurrence(service: Ledger, body: RecurrenceSetup) -> dict[str, Any]:
         day = row["transaction_date"]
         month = (day.year, day.month)
         due = month_date(day, 0, body.due_day)
+        if row["installment_plan_id"] is not None:
+            raise HTTPException(422, "Installments cannot be linked to a recurrence")
+        if body.frequency == "YEARLY" and day.month != body.month_of_year:
+            raise HTTPException(422, "Existing occurrence is outside the annual renewal month")
         if month in months:
             raise HTTPException(422, "Only one occurrence per month is allowed")
         months.add(month)
@@ -67,12 +72,8 @@ def setup_recurrence(service: Ledger, body: RecurrenceSetup) -> dict[str, Any]:
         )
         if existing:
             raise HTTPException(409, "A rule with this description already exists")
-        occurrence = month_date(body.start_date, 0, body.due_day)
-        if occurrence < body.start_date:
-            occurrence = month_date(body.start_date, 1, body.due_day)
-        data["next_due_date"] = (
-            occurrence if not body.end_date or occurrence <= body.end_date else None
-        )
+        occurrence = next_occurrence(data, body.start_date)
+        data["next_due_date"] = occurrence
         rule = service.create("recurring_transactions", data)
     for row in rows:
         if not row["recurrence_id"]:
@@ -96,13 +97,7 @@ def generate_recurrence(
     represented = {(row["transaction_date"].year, row["transaction_date"].month) for row in rows}
     created = []
     skipped = 0
-    anchor = max(start_date, rule["start_date"])
-    for offset in range(14):
-        due = month_date(anchor, offset, rule["due_day"])
-        if due < anchor:
-            continue
-        if due > end_date or (rule["end_date"] and due > rule["end_date"]):
-            break
+    for due in occurrence_dates(rule, start_date, end_date):
         if (due.year, due.month) in represented:
             skipped += 1
             continue

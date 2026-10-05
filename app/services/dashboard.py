@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 from app.schemas.inputs import Money
 from app.services.ledger import Ledger
-from app.services.schedules import month_date
+from app.services.occurrences import occurrence_dates
 
 ZERO = Decimal("0")
 
@@ -73,10 +73,10 @@ def monthly_dashboard(
     }
     virtual_expense = virtual_income = ZERO
     for rule in rules:
-        if not rule["active"] or rule["frequency"] != "MONTHLY":
+        if not rule["active"]:
             continue
-        due = month_date(start, 0, rule["due_day"])
-        if due < rule["start_date"] or (rule["end_date"] and due > rule["end_date"]):
+        due = next(occurrence_dates(rule, start, end), None)
+        if due is None:
             continue
         if (rule["id"], due.year, due.month) in represented:
             continue
@@ -116,7 +116,7 @@ def monthly_dashboard(
             for key, value in sorted(totals.items(), key=lambda pair: pair[1], reverse=True)[:5]
         ],
         "projection_basis": (
-            "Pending transactions and active monthly rules; no variable spending estimate"
+            "Pending transactions and active recurrence rules; no variable spending estimate"
         ),
     }
 

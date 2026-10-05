@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from app.schemas.inputs import Input, Name
 from app.services.ledger import Ledger
+from app.services.occurrences import occurrence_dates
 
 
 def month_date(anchor: date, offset: int, day: int | None = None) -> date:
@@ -121,15 +122,7 @@ def schedules_router(dependency: Any) -> APIRouter:
         for rule in service.connection.execute(
             select(rules).where(rules.c.user_id == service.user_id, rules.c.active.is_(True))
         ).mappings():
-            if rule["frequency"] != "MONTHLY":
-                continue
-            anchor = max(start_date, rule["start_date"])
-            for offset in range(14):
-                due = month_date(anchor, offset, rule["due_day"])
-                if due < anchor:
-                    continue
-                if due > end_date or (rule["end_date"] and due > rule["end_date"]):
-                    break
+            for due in occurrence_dates(dict(rule), start_date, end_date):
                 rows = list(
                     service.connection.execute(
                         select(table).where(

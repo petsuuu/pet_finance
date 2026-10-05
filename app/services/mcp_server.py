@@ -18,7 +18,7 @@ from sqlalchemy import Engine
 
 from app.core.config import Settings
 from app.schemas.inputs import TransactionCreate, TransactionPatch
-from app.schemas.plans import RecurrenceGenerate, RecurrenceSetup
+from app.schemas.plans import RecurrenceGenerate, RecurrencePatch, RecurrenceSetup
 from app.services.oauth import OwnerOAuth
 
 
@@ -121,14 +121,29 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
 
     @server.tool(annotations=write, meta=meta)
     async def setup_recurrence(body: RecurrenceSetup) -> dict[str, Any]:
-        """Configure uma recorrência mensal e vincule IDs de lançamentos existentes confirmados.
+        """Configure recorrência mensal ou anual vinculando lançamentos existentes confirmados.
 
-        Consulte lançamentos primeiro. Vincule apenas a mesma obrigação, um por mês;
+        Consulte lançamentos primeiro. Vincule apenas a mesma obrigação, um por mês de ocorrência;
+        para YEARLY informe month_of_year e vincule somente o mês de renovação;
         preserve datas/valores pagos. Não inclua parcelamentos. Respeite limites de continuidade
         confirmados pelo usuário. Repetir o mesmo corpo não cria outra regra.
         """
         result: dict[str, Any] = await rest(
             "POST", "/recurrences/setup", body.model_dump(mode="json")
+        )
+        return result
+
+    @server.tool(annotations=write, meta=meta)
+    async def update_recurrence(identity: UUID, body: RecurrencePatch) -> dict[str, Any]:
+        """Edite a regra existente após consultar list_recurring_and_installments.
+
+        Use end_date para a continuidade confirmada e active=false para cancelar a regra.
+        Preserva IDs, vínculos e lançamentos existentes; não cancela previsões já registradas.
+        Valores alterados valem para gerações futuras, sem mudar pagamentos anteriores.
+        Não crie outra regra para prorrogar. Não inclua parcelamentos.
+        """
+        result: dict[str, Any] = await rest(
+            "PATCH", f"/recurrences/{identity}", body.model_dump(mode="json", exclude_unset=True)
         )
         return result
 

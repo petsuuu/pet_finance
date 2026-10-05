@@ -1,4 +1,5 @@
 from datetime import date
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -178,3 +179,84 @@ def test_adopt_monthly_occurrences_and_generate_idempotently(client: TestClient)
         ).status_code
         == 422
     )
+
+
+def test_extend_rule_preserves_payments_and_annual_renewals(client: TestClient) -> None:
+    account = client.post("/api/v1/accounts", json={"name": "Annual wallet"}).json()["id"]
+    payment = client.post(
+        "/api/v1/transactions",
+        json={
+            "description": "Annual renewal",
+            "account_id": account,
+            "type": "EXPENSE",
+            "amount": "119.90",
+            "status": "POSTED",
+            "transaction_date": "2027-08-01",
+            "idempotency_key": "annual-early-payment",
+        },
+    ).json()
+    setup = {
+        "description": "Annual renewal",
+        "account_id": account,
+        "expected_amount": "119.90",
+        "frequency": "YEARLY",
+        "month_of_year": 8,
+        "due_day": 9,
+        "start_date": "2027-08-01",
+        "end_date": "2027-12-31",
+        "transaction_ids": [payment["id"]],
+    }
+    configured = client.post("/api/v1/recurrences/setup", json=setup)
+    assert configured.status_code == 200
+    identity = configured.json()["recurrence"]["id"]
+    assert configured.json()["recurrence"]["next_due_date"] == "2027-08-09"
+    assert (
+        client.post("/api/v1/recurrences/setup", json=setup).json()["recurrence"]["id"] == identity
+    )
+    patched = client.patch(f"/api/v1/recurrences/{identity}", json={"end_date": "2028-12-31"})
+    assert patched.status_code == 200
+    assert patched.json()["id"] == identity
+    assert patched.json()["frequency"] == "YEARLY"
+    assert len(client.get("/api/v1/recurrences").json()) == 1
+    recorded = client.get(f"/api/v1/transactions/{payment['id']}").json()
+    for key in ["amount", "status", "transaction_date"]:
+        assert recorded[key] == payment[key]
+    period = {"start_date": "2028-01-01", "end_date": "2028-12-31"}
+
+    def dashboard(month: int) -> dict[str, Any]:
+        result: dict[str, Any] = client.get(
+            "/api/v1/dashboard/monthly",
+            params={
+                "year": 2028,
+                "month": month,
+                "as_of": f"2028-{month:02}-01",
+            },
+        ).json()
+
+        return result
+
+    assert dashboard(7)["unrecorded_recurring_expenses"] == "0"
+    assert dashboard(8)["unrecorded_recurring_expenses"] == "119.90"
+    generated = client.post(f"/api/v1/recurrences/{identity}/generate", json=period).json()
+    assert generated["created_count"] == 1
+    assert generated["transactions"][0]["transaction_date"] == "2028-08-09"
+    assert dashboard(8)["unrecorded_recurring_expenses"] == "0"
+    assert (
+        client.post(f"/api/v1/recurrences/{identity}/generate", json=period).json()["created_count"]
+        == 0
+    )
+    audit = client.get("/api/v1/audit/recurrences", params={**period, "as_of": "2028-01-01"}).json()
+    assert len(audit) == 1
+    assert audit[0]["due_date"] == "2028-08-09"
+    assert (
+        client.post("/api/v1/recurrences/setup", json={**setup, "month_of_year": 7}).status_code
+        == 422
+    )
+    assert (
+        client.post("/api/v1/recurrences/setup", json={**setup, "month_of_year": None}).status_code
+        == 422
+    )
+    assert (
+        client.patch(f"/api/v1/recurrences/{identity}", json={"active": False}).status_code == 200
+    )
+    assert client.post(f"/api/v1/recurrences/{identity}/generate", json=period).status_code == 422

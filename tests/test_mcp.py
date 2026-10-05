@@ -341,7 +341,7 @@ def test_mcp_tools_reuse_ledger_idempotency_and_payment_updates(mcp_client: Test
     )
     assert initialized.status_code == 200
     tools = rpc(mcp_client, token, "tools/list", {}).json()["result"]["tools"]
-    assert len(tools) == 10
+    assert len(tools) == 11
     assert all(t["_meta"]["securitySchemes"][0]["type"] == "oauth2" for t in tools)
     auth = {"Authorization": "Bearer test-token"}
     account = mcp_client.post(
@@ -434,3 +434,40 @@ def test_mcp_tools_reuse_ledger_idempotency_and_payment_updates(mcp_client: Test
     ).json()["result"]
     assert not generated.get("isError")
     assert generated["structuredContent"]["created_count"] == 1
+
+
+def test_mcp_updates_existing_recurrence(mcp_client: TestClient) -> None:
+    identity, code = grant(mcp_client)
+    token = exchange(mcp_client, identity, code).json()["access_token"]
+    headers = {"Authorization": "Bearer test-token"}
+    account = mcp_client.post(
+        "/api/v1/accounts", headers=headers, json={"name": "Rule wallet"}
+    ).json()["id"]
+    rule = mcp_client.post(
+        "/api/v1/recurrences",
+        headers=headers,
+        json={
+            "description": "Monthly rule",
+            "account_id": account,
+            "expected_amount": "50",
+            "due_day": 27,
+            "start_date": "2026-09-01",
+            "end_date": "2026-12-31",
+        },
+    ).json()
+    arguments = {"identity": rule["id"], "body": {"end_date": "2028-12-31"}}
+    for _ in range(2):
+        result = rpc(
+            mcp_client,
+            token,
+            "tools/call",
+            {
+                "name": "update_recurrence",
+                "arguments": arguments,
+            },
+        ).json()["result"]
+        assert not result.get("isError")
+        assert result["structuredContent"]["id"] == rule["id"]
+        assert result["structuredContent"]["end_date"] == "2028-12-31"
+    assert len(mcp_client.get("/api/v1/recurrences", headers=headers).json()) == 1
+    assert mcp_client.get("/api/v1/transactions", headers=headers).json() == []

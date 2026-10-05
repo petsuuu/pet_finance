@@ -15,7 +15,8 @@ class RecurrenceCreate(Input):
     tolerance_amount: Annotated[Money, Field(ge=0)] = Decimal("0")
     account_id: UUID
     category_id: UUID | None = None
-    frequency: Literal["MONTHLY"] = "MONTHLY"
+    frequency: Literal["MONTHLY", "YEARLY"] = "MONTHLY"
+    month_of_year: Annotated[int, Field(ge=1, le=12)] | None = None
     due_day: Annotated[int, Field(ge=1, le=31)]
     start_date: date
     end_date: date | None = None
@@ -25,6 +26,8 @@ class RecurrenceCreate(Input):
     def dates(self) -> "RecurrenceCreate":
         if self.end_date and self.end_date < self.start_date:
             raise ValueError("end_date precedes start_date")
+        if (self.frequency == "YEARLY") != (self.month_of_year is not None):
+            raise ValueError("month_of_year is required only for YEARLY rules")
         return self
 
 
