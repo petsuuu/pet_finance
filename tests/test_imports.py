@@ -57,3 +57,24 @@ def test_legacy_category_resolves_only_unique_name() -> None:
     body.transactions[0]["category"] = {"id": str(uuid4()), "name": "Imported food"}
     rows = normalize(body)
     assert rows[0]["category_id"] == body.categories[0]["id"]
+
+
+def test_import_integer_amount_reconciles(client: TestClient) -> None:
+    from app.services.imports import Snapshot
+
+    body = Snapshot.model_validate(snapshot())
+    body.transactions[0]["amount"] = 50
+    response = client.post("/api/v1/imports/clofin/commit", json=body.model_dump())
+    assert response.status_code == 200
+    batch = response.json()["batch_id"]
+    report = client.get(f"/api/v1/imports/{batch}/reconciliation").json()
+    assert report["different_rows"] == 0
+    assert report["reconciled"] is True
+    transaction = client.get("/api/v1/transactions").json()[0]["id"]
+    response = client.patch(
+        f"/api/v1/transactions/{transaction}", json={"amount": "51.00"}
+    )
+    assert response.status_code == 200
+    report = client.get(f"/api/v1/imports/{batch}/reconciliation").json()
+    assert report["different_rows"] == 1
+    assert report["reconciled"] is False
