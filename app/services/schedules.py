@@ -41,6 +41,9 @@ def schedules_router(dependency: Any) -> APIRouter:
 
     @router.post("/installments/{identity}/generate")
     def generate(identity: UUID, service: Ledger = Depends(dependency)) -> dict[str, Any]:
+        from app.services.recurrences import lock
+
+        lock(service)
         plan = service.get("installment_plans", identity)
         if not plan["active"]:
             raise HTTPException(422, "Inactive plan")
@@ -56,7 +59,7 @@ def schedules_router(dependency: Any) -> APIRouter:
             ).mappings()
         }
         created = []
-        for number in range(1, plan["total_installments"] + 1):
+        for number in range(plan["first_tracked_number"], plan["total_installments"] + 1):
             if number in existing:
                 continue
             created.append(
@@ -95,7 +98,7 @@ def schedules_router(dependency: Any) -> APIRouter:
             ).mappings()
         }
         result = []
-        for n in range(1, plan["total_installments"] + 1):
+        for n in range(plan["first_tracked_number"], plan["total_installments"] + 1):
             due = month_date(plan["first_installment_date"], n - 1)
             row = rows.get(n)
             status = "MISSING" if row is None else row["status"]

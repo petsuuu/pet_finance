@@ -19,7 +19,13 @@ from sqlalchemy import Engine
 from app.core.config import Settings
 from app.schemas.inputs import TransactionCreate, TransactionPatch
 from app.schemas.merchants import MerchantPatch, MerchantSetup
-from app.schemas.plans import RecurrenceCancel, RecurrenceGenerate, RecurrencePatch, RecurrenceSetup
+from app.schemas.plans import (
+    InstallmentSetup,
+    RecurrenceCancel,
+    RecurrenceGenerate,
+    RecurrencePatch,
+    RecurrenceSetup,
+)
 from app.services.oauth import OwnerOAuth
 
 
@@ -124,6 +130,34 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         """
         params = {k: str(v) for k, v in locals().items() if v is not None}
         result: dict[str, Any] = await rest("GET", "/dashboard/agenda", params=params)
+        return result
+
+    @server.tool(annotations=read, meta=meta)
+    async def daily_cashflow(as_of: date | None = None, safety_margin: str = "0") -> dict[str, Any]:
+        """Projeção de saldo dia a dia até o fim do mês, com menor saldo e primeira data negativa.
+
+        Receitas PENDING são estimativas, não dinheiro recebido. Pendências anteriores ao dia
+        são consideradas no dia consultado. A projeção não inclui novos gastos variáveis,
+        não confirma saldo bancário e não garante limite de gasto.
+        """
+        params = {k: str(v) for k, v in locals().items() if v is not None}
+        result: dict[str, Any] = await rest("GET", "/dashboard/cashflow", params=params)
+        return result
+
+    @server.tool(annotations=write, meta=meta)
+    async def setup_installment(body: InstallmentSetup) -> dict[str, Any]:
+        """Vincule parcelas existentes a um plano, com prévia por padrão, sem gerar lançamentos.
+
+        Consulte todo o histórico e confirme os números a partir das descrições/notas.
+        links associa cada transaction_id ao número original. first_installment_date é a
+        data planejada da parcela 1; first_tracked_number limita o histórico comprovado.
+        Não invente parcelas antigas. Preserve os valores reais, cancelamentos e pagamentos
+        antecipados. Se não houver evidência suficiente para o calendário, esclareça primeiro.
+        preview=false aplica a configuração confirmada; repetir não cria outro plano.
+        """
+        result: dict[str, Any] = await rest(
+            "POST", "/installments/setup", body.model_dump(mode="json")
+        )
         return result
 
     @server.tool(annotations=read, meta=meta)

@@ -70,3 +70,20 @@ class InstallmentCreate(Input):
     account_id: UUID
     category_id: UUID | None = None
     notes: str | None = None
+    first_tracked_number: Annotated[int, Field(ge=1, le=600)] = 1
+
+    @model_validator(mode="after")
+    def tracked_range(self) -> "InstallmentCreate":
+        if self.first_tracked_number > self.total_installments:
+            raise ValueError("first_tracked_number exceeds total_installments")
+        return self
+
+
+class InstallmentLink(Input):
+    transaction_id: UUID
+    number: Annotated[int, Field(ge=1, le=600)]
+
+
+class InstallmentSetup(InstallmentCreate):
+    links: Annotated[list[InstallmentLink], Field(min_length=1, max_length=600)]
+    preview: bool = True
