@@ -369,3 +369,22 @@ Missing observed history or nonpositive prior net spending yields no comparable
 percentage or savings claim. History coverage is inferred from earliest recorded
 transaction and never certifies bank completeness. Lower spending is not confirmed
 saving, especially around advance payments and refunds. Reads do not write.
+
+
+### Recurring spending radar
+
+monthly_dashboard.recurring_radar discloses recurring payment amounts, annual
+reference run rates, monthly equivalents and estimated unpaid costs over the next
+12 months respecting rule dates/frequency and represented paid/cancelled occurrences.
+Only identified subscriptions classified as optional are review candidates; use and
+contract terms must be checked before any cancellation. An annual service is never
+treated as 12 annual charges, and reference annual cost is distinct from the actual
+12-month schedule.
+
+Ending installments use explicit plans or migrated PAR markers with x/y evidence
+and a unique final recorded installment. Ambiguous totals/numbers require review.
+The next-six-month list identifies potential monthly release after the last planned
+installment, not confirmed payoff or spendable cash. All suggestions are read-only.
+Growth requires three observed complete preceding calendar months and two consecutive
+increases; incomplete history yields no persistent-growth claim. Actual vacation
+spending stays visible. No new forecasts, cancellations or financial mutations.
