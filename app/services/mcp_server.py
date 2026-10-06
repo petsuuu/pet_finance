@@ -152,7 +152,15 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         as_of: date | None = None,
         safety_margin: str = "0",
     ) -> dict[str, Any]:
-        """Saldo, resultado do mês, compromissos e projeção sem estimativa de novos gastos."""
+        """Dashboard mensal com compromissos, orçamento, plano de recuperação e comparação.
+
+        category_comparison contém todas as categorias de despesa dos últimos três meses.
+        Exiba paid_net por mês, identificando o atual como parcial. A variação usa o mesmo
+        intervalo de dias (matched_period_net), não compare mês parcial com mês inteiro
+        para afirmar economia. SEM_BASE_COMPARAVEL indica evidência insuficiente.
+        Férias permanecem no consumo real, separadas em extraordinary_net. Gasto menor
+        não prova poupança; preserve datas reais e não some categorias pai/filhas novamente.
+        """
         params = {k: str(v) for k, v in locals().items() if v is not None}
         result: dict[str, Any] = await rest("GET", "/dashboard/monthly", params=params)
         return result
