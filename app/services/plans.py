@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from app.schemas.plans import (
     InstallmentCreate,
+    RecurrenceCancel,
     RecurrenceCreate,
     RecurrenceGenerate,
     RecurrencePatch,
@@ -15,7 +16,7 @@ from app.schemas.plans import (
 )
 from app.services.ledger import Ledger
 from app.services.occurrences import next_occurrence
-from app.services.recurrences import generate_recurrence, lock, setup_recurrence
+from app.services.recurrences import cancel_recurrence, generate_recurrence, lock, setup_recurrence
 
 
 def next_monthly(start: date, day: int) -> date:
@@ -84,6 +85,12 @@ def plans_router(dependency: Any) -> APIRouter:
         occurrence = next_occurrence(merged, anchor)
         data["next_due_date"] = occurrence
         return service.patch("recurring_transactions", identity, data)
+
+    @router.post("/recurrences/{identity}/cancel")
+    def cancel_rule(
+        identity: UUID, body: RecurrenceCancel, service: Ledger = Depends(dependency)
+    ) -> dict[str, Any]:
+        return cancel_recurrence(service, identity, body)
 
     @router.get("/installments")
     def installments(

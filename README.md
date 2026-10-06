@@ -1,5 +1,30 @@
 # Pet Finance
 
+## Cancelamento com prévia e estabelecimentos
+
+`POST /api/v1/recurrences/{id}/cancel` recebe `effective_date` e `preview` (padrão
+`true`). A prévia lista as previsões pendentes afetadas sem gravar. Com `preview=false`,
+a regra termina antes da data indicada e os lançamentos PENDING vinculados desde essa
+data ficam CANCELLED. Pagamentos anteriores, inclusive antecipados, atrasos antes da
+data e parcelamentos são preservados. IDs e auditoria permanecem disponíveis. Não há
+exclusão física e repetir o cancelamento não cria novos lançamentos.
+
+`POST /api/v1/merchants/setup` cadastra nome conhecido, `aliases` confirmados do
+cartão/Pix e `default_category_id`. `GET /api/v1/merchants/resolve?raw_name=...`
+normaliza caixa, acentos e separadores e procura apenas aliases cadastrados. Não há
+classificação por aproximação ou busca externa automática. Um alias não pode pertencer
+a dois estabelecimentos do mesmo usuário. `PATCH /api/v1/merchants/{id}` altera a
+categoria habitual, sem alterar lançamentos anteriores.
+
+Novos lançamentos podem informar `merchant_id`. Para despesas sem categoria explícita,
+usa-se a categoria habitual ativa; uma categoria explícita sempre prevalece, pois o
+produto comprado pode diferir da atividade habitual. Intermediadoras genéricas devem
+ser esclarecidas antes de cadastrar aliases. As ferramentas MCP expõem a prévia de
+cancelamento, consulta, resolução, cadastro e atualização de estabelecimentos.
+
+Execute `alembic upgrade head` antes da versão com estas ferramentas. A migração
+0005 adiciona cadastro e vínculo opcional; não recategoriza dados antigos.
+
 API financeira pessoal em Python 3.12, FastAPI, SQLAlchemy 2 e PostgreSQL.
 Sprint 1: contas, categorias, transações e auditoria. O CloFin permanece a fonte
 oficial até conciliação e validação da migração.
@@ -226,3 +251,16 @@ vínculos, datas e valores dos lançamentos existentes; previsões já registrad
 são canceladas automaticamente. A edição é serializada com a geração. Regras anuais
 só geram e entram na projeção no mês de renovação. Atualize as ferramentas do plugin
 após publicar para carregar a edição e o novo esquema de configuração.
+## Agenda mensal resumida
+
+`GET /api/v1/dashboard/agenda?year=2026&month=10&as_of=2026-10-05` reúne despesas
+avulsas, recorrências e parcelas numa lista por data, com totais de pagos, pendentes e
+atrasados, contas do dia e próximos sete dias. Pendências registradas de meses anteriores
+continuam visíveis. A ferramenta MCP `monthly_agenda` disponibiliza a mesma leitura.
+
+`recorded=false` e `missing_forecasts` identificam ocorrências esperadas que ainda não
+têm lançamento; a consulta não grava nada. Ocorrências vinculadas, inclusive pagas ou
+canceladas, impedem outra previsão na agenda. Estimativas ausentes são buscadas apenas
+no mês solicitado. Datas dos registros são as datas dos lançamentos, não um vencimento
+ou data de pagamento reconstruídos. Transferências, pagamentos de cartão e ajustes
+técnicos de saldo não entram nos totais de consumo.

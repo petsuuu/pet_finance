@@ -1,6 +1,6 @@
 """Adopt existing monthly or yearly payments and generate missing occurrences atomically."""
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -8,7 +8,7 @@ from fastapi import HTTPException
 from sqlalchemy import select, text
 
 from app.schemas.inputs import TransactionCreate
-from app.schemas.plans import RecurrenceSetup
+from app.schemas.plans import RecurrenceCancel, RecurrenceSetup
 from app.services.ledger import Ledger
 from app.services.occurrences import next_occurrence, occurrence_dates
 from app.services.schedules import month_date
@@ -19,6 +19,55 @@ def lock(service: Ledger) -> None:
         text("SELECT pg_advisory_xact_lock(hashtextextended(:owner, 0))"),
         {"owner": str(service.user_id)},
     )
+
+
+def cancel_recurrence(service: Ledger, identity: UUID, body: RecurrenceCancel) -> dict[str, Any]:
+    """Preview by default; keep paid occurrences and overdue obligations before the cutoff."""
+    if body.effective_date == date.min:
+        raise HTTPException(422, "effective_date must be after the earliest supported date")
+    lock(service)
+    rule = service.get("recurring_transactions", identity)
+    table = service.table("transactions")
+    rows = [
+        dict(row)
+        for row in service.connection.execute(
+            select(table)
+            .where(
+                table.c.user_id == service.user_id,
+                table.c.recurrence_id == identity,
+                table.c.status == "PENDING",
+                table.c.transaction_date >= body.effective_date,
+            )
+            .order_by(table.c.transaction_date, table.c.id)
+            .with_for_update()
+        ).mappings()
+    ]
+    cutoff = body.effective_date - timedelta(days=1)
+    changes: dict[str, Any] = {}
+    if body.effective_date <= rule["start_date"]:
+        changes["active"] = False
+    elif rule["end_date"] is None or cutoff < rule["end_date"]:
+        changes["end_date"] = cutoff
+    if changes:
+        merged = {**rule, **changes}
+        changes["next_due_date"] = (
+            next_occurrence(merged, rule["next_due_date"] or rule["start_date"])
+            if merged["active"]
+            else None
+        )
+    if not body.preview:
+        if changes:
+            rule = service.patch("recurring_transactions", identity, changes)
+        rows = [service.patch("transactions", row["id"], {"status": "CANCELLED"}) for row in rows]
+    return {
+        "preview": body.preview,
+        "effective_date": body.effective_date,
+        "recurrence": rule,
+        "rule_changes": changes,
+        "affected_count": len(rows),
+        "cancelled_count": 0 if body.preview else len(rows),
+        "transactions": [dict(row) for row in rows],
+    }
 
 
 def setup_recurrence(service: Ledger, body: RecurrenceSetup) -> dict[str, Any]:
