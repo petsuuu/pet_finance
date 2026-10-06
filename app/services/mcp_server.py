@@ -26,6 +26,7 @@ from app.schemas.plans import (
     RecurrencePatch,
     RecurrenceSetup,
 )
+from app.services.budgets import BudgetGenerate, BudgetSet
 from app.services.oauth import OwnerOAuth
 
 
@@ -74,6 +75,44 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         if response.is_error:
             raise ValueError(f"Pet Finance ({response.status_code}): {response.text}")
         return response.json()
+
+    @server.tool(annotations=read, meta=meta)
+    async def list_budgets(year: int, month: int) -> dict[str, Any]:
+        """Consulte tetos por categoria, gastos, pendências, restante e alertas do mês.
+
+        NEEDS_REVIEW indica ausência de evidência, não necessidade de gasto zero.
+        O restante do orçamento não é saldo disponível; consulte a projeção de caixa.
+        Cada categoria cobre lançamentos diretamente nela, sem somar filhos duas vezes.
+        """
+        result: dict[str, Any] = await rest(
+            "GET", "/budgets", params={"year": str(year), "month": str(month)}
+        )
+        return result
+
+    @server.tool(annotations=write, meta=meta)
+    async def generate_budgets(body: BudgetGenerate) -> dict[str, Any]:
+        """Calcule e cadastre tetos por histórico e obrigações, com prévia por padrão.
+
+        preview=false aplica a autorização do usuário. Usa até três meses completos,
+        separando férias identificadas, e protege compromissos registrados. Preserva tetos
+        existentes e manuais; não aumenta limites por excesso de consumo. Sem histórico,
+        sinaliza revisão. savings_target é meta, não transferência ou dinheiro recebido.
+        Não confirma capacidade de gastar nem altera pagamentos.
+        """
+        result: dict[str, Any] = await rest(
+            "POST", "/budgets/generate", body.model_dump(mode="json")
+        )
+        return result
+
+    @server.tool(annotations=write, meta=meta)
+    async def set_budget(body: BudgetSet) -> dict[str, Any]:
+        """Defina o teto mensal de uma categoria ativa, conforme pedido do usuário.
+
+        Consulte IDs e orçamento antes. Alterações manuais são preservadas pela geração
+        automática. Não transfere dinheiro nem muda lançamentos.
+        """
+        result: dict[str, Any] = await rest("POST", "/budgets/set", body.model_dump(mode="json"))
+        return result
 
     @server.tool(annotations=read, meta=meta)
     async def list_accounts() -> dict[str, Any]:

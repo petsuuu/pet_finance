@@ -23,6 +23,7 @@ from app.schemas.inputs import (
     TransactionPatch,
 )
 from app.services.agenda import agenda_router
+from app.services.budgets import budgets_router, ensure_current_budgets
 from app.services.dashboard import dashboard_router
 from app.services.imports import imports_router
 from app.services.ledger import Ledger
@@ -109,7 +110,10 @@ def create_app(settings: Settings) -> FastAPI:
 
     @api.post("/api/v1/transactions", status_code=201)
     def create_transaction(body: TransactionCreate, service: Service) -> dict[str, Any]:
-        return service.transaction(body)
+        result = service.transaction(body)
+        if body.source in {"CHATGPT", "MANUAL"}:
+            ensure_current_budgets(service)
+        return result
 
     @api.get("/api/v1/transactions")
     def transactions(
@@ -195,6 +199,7 @@ def create_app(settings: Settings) -> FastAPI:
     api.include_router(imports_router(ledger))
     api.include_router(dashboard_router(ledger))
     api.include_router(agenda_router(ledger))
+    api.include_router(budgets_router(ledger))
     api.include_router(plans_router(ledger))
     api.include_router(merchants_router(ledger))
     api.include_router(schedules_router(ledger))
