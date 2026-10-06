@@ -351,3 +351,21 @@ saving today is never recommended based on today's unreceived inflow. Dates are
 conditional on actually receiving income and checking the balance. No bank
 reconciliation, intraday sequencing, interest rate, credit availability or savings
 transfer is assumed. Null dates mean no demonstrated recovery within this month.
+
+
+### Three-month category comparison
+
+monthly_dashboard.category_comparison includes all active expense categories and
+archived categories with paid expense/refund activity in the selected month plus
+two preceding months. Direct-category net consumption counts POSTED expenses minus
+refunds, with real dates through as_of; parent categories do not roll up children.
+Uncategorized consumption is included. Technical adjustments, card payments,
+transfers, income, pending and cancelled entries are excluded. Identified vacations
+remain in actual consumption and are separately disclosed.
+
+Monthly totals label the current month partial. Trends and percentage changes use
+the same day-of-month cutoff in the preceding month, clamped to its calendar end.
+Missing observed history or nonpositive prior net spending yields no comparable
+percentage or savings claim. History coverage is inferred from earliest recorded
+transaction and never certifies bank completeness. Lower spending is not confirmed
+saving, especially around advance payments and refunds. Reads do not write.
