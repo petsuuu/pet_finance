@@ -13,6 +13,7 @@ from app.services.cashflow import daily_cashflow
 from app.services.comparison import category_comparison
 from app.services.ledger import Ledger
 from app.services.occurrences import occurrence_dates
+from app.services.radar import recurring_radar
 from app.services.recovery import recovery_plan
 from app.services.spending import assess_purchase
 
@@ -158,6 +159,9 @@ def monthly_dashboard(
     result["recovery_plan"] = recovery_plan(flow, budgets, list(categories.values()))
     result["category_comparison"] = category_comparison(
         list(categories.values()), transactions, as_of
+    )
+    result["recurring_radar"] = recurring_radar(
+        rules, rows("installment_plans"), transactions, list(categories.values()), as_of
     )
     return result
 

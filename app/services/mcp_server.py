@@ -154,6 +154,10 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
     ) -> dict[str, Any]:
         """Dashboard mensal com compromissos, orçamento, plano de recuperação e comparação.
 
+        recurring_radar mostra custo de recorrências/assinaturas, categorias em crescimento
+        e parcelas com término planejado nos próximos seis meses, inclusive migradas PAR.
+        Não presumir assinatura sem uso nem quitação; economia após cancelamento depende
+        da decisão do usuário e contrato. Histórico insuficiente não confirma tendência.
         category_comparison contém todas as categorias de despesa dos últimos três meses.
         Exiba paid_net por mês, identificando o atual como parcial. A variação usa o mesmo
         intervalo de dias (matched_period_net), não compare mês parcial com mês inteiro
