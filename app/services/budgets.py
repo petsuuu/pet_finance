@@ -71,7 +71,7 @@ def category_limits(
     end = date(year, month, monthrange(year, month)[1])
     result = []
     for category in categories:
-        if not category["active"]:
+        if not category["active"] or category["name"] == "Ajuste de Saldo":
             continue
         relevant = [r for r in transactions if r["category_id"] == category["id"]]
         if category["expense_class"] is None and not any(r["type"] == "EXPENSE" for r in relevant):
@@ -115,8 +115,6 @@ def category_limits(
         reducible = discretionary and category["name"] != "Refeições fora"
         amount = baseline * (Decimal("0.90") if reducible else Decimal("1"))
         amount = max(amount, committed, ZERO)
-        if category["name"] == "Ajuste de Saldo":
-            amount = ZERO
         amount = (amount / 5).to_integral_value(rounding=ROUND_CEILING) * 5
         confidence = "LIMITED" if len(samples) < 3 else "HISTORICAL"
         if not baseline and not committed:
@@ -208,6 +206,8 @@ def budget_usage(service: Ledger, year: int, month: int) -> dict[str, Any]:
     items = []
     for budget in rows(service, "budgets"):
         if (budget["year"], budget["month"]) != (year, month):
+            continue
+        if categories[budget["category_id"]]["name"] == "Ajuste de Saldo":
             continue
         relevant = [
             r
