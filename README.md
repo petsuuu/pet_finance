@@ -329,3 +329,25 @@ projection does not establish liquidity in a particular account or guarantee
 future income. No credit financing, intraday ordering or unknown bank charges are
 assumed. monthly_dashboard exposes spending_today as a general summary usable
 through existing connections. Purchase simulations require today's São Paulo date.
+
+
+### Recovery from negative balance
+
+Read-only GET `/api/v1/dashboard/recovery-plan` and MCP recovery_plan provide
+conditional recovery and savings dates through month end, expected inflows, protected
+obligations, remaining variable spending, and suggested reductions. monthly_dashboard
+also embeds the plan for existing connections. Safety margin and a user-provided
+estimated bank-charge amount may be supplied; unknown charges are explicitly
+excluded rather than inferred. Neither amount creates a transaction or transfer.
+
+Recovery dates require the forecast to remain above the margin through the horizon.
+The variable-spending scenario distributes remaining monthly allowances evenly per
+day (cent rounding reconciled on the final day), not inferred bill due dates. A
+separate scenario suggests proportional cuts only to remaining SUPERFLUOUS allowances,
+excluding Refeições fora. Existing pending bills and essential categories are untouched.
+Unresolved shortfall is explicit. Optional spending is deferred while recorded cash
+is negative. A savings date requires future balances to cover the goal and margin;
+saving today is never recommended based on today's unreceived inflow. Dates are
+conditional on actually receiving income and checking the balance. No bank
+reconciliation, intraday sequencing, interest rate, credit availability or savings
+transfer is assumed. Null dates mean no demonstrated recovery within this month.
