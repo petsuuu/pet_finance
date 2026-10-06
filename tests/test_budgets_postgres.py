@@ -85,3 +85,37 @@ def test_no_evidence_and_invalid_budget_category(client: TestClient) -> None:
         ).status_code
         == 404
     )
+
+
+def test_confirmed_migration_persists_and_audits_existing_limits(client: TestClient) -> None:
+    from alembic import command
+    from alembic.config import Config
+
+    params = {"year": 2026, "month": 10}
+    for name, cap in [
+        ("Refeições fora", "140.00"),
+        ("Viagens e Hospedagem", "0.00"),
+        ("Eventos e Shows", "0.00"),
+        ("Óculos e Visão", "0.00"),
+        ("Preserved", "245.00"),
+    ]:
+        category = client.post(
+            "/api/v1/categories", json={"name": name, "expense_class": "SUPERFLUOUS"}
+        ).json()["id"]
+        client.post(
+            "/api/v1/budgets/set", json={**params, "category_id": category, "limit_amount": "245"}
+        )
+    config = Config("alembic.ini")
+    command.downgrade(config, "0007")
+    command.upgrade(config, "head")
+    items = client.get("/api/v1/budgets", params=params).json()["items"]
+    expected = {
+        "Refeições fora": "140.00",
+        "Viagens e Hospedagem": "0.00",
+        "Eventos e Shows": "0.00",
+        "Óculos e Visão": "0.00",
+        "Preserved": "245.00",
+    }
+    assert {r["category"]: r["limit_amount"] for r in items} == expected
+    assert all(r["basis"]["repeat_monthly"] for r in items if r["category"] != "Preserved")
+    assert client.get("/api/v1/transactions").json() == []
