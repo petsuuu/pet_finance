@@ -83,7 +83,7 @@ def expense_agenda(
     for plan in plans:
         if not plan["active"]:
             continue
-        for number in range(1, plan["total_installments"] + 1):
+        for number in range(plan.get("first_tracked_number", 1), plan["total_installments"] + 1):
             due = month_date(plan["first_installment_date"], number - 1)
             if start <= due <= end and (plan["id"], number) not in represented_plans:
                 add(
@@ -126,6 +126,39 @@ def expense_agenda(
 
 def agenda_router(dependency: Any) -> APIRouter:
     router = APIRouter(prefix="/api/v1")
+
+    @router.get("/dashboard/cashflow")
+    def cashflow(
+        as_of: date | None = None,
+        safety_margin: Decimal = Query(Decimal("0"), ge=0, max_digits=14, decimal_places=2),
+        service: Ledger = Depends(dependency),
+    ) -> dict[str, Any]:
+        from app.services.cashflow import daily_cashflow
+
+        today = as_of or datetime.now(ZoneInfo("America/Sao_Paulo")).date()
+        if not 2000 <= today.year <= 2100:
+            raise HTTPException(422, "as_of year must be between 2000 and 2100")
+        end = date(today.year, today.month, monthrange(today.year, today.month)[1])
+
+        def rows(name: str) -> list[dict[str, Any]]:
+            table = service.table(name)
+            return [
+                dict(r)
+                for r in service.connection.execute(
+                    select(table).where(table.c.user_id == service.user_id)
+                ).mappings()
+            ]
+
+        return daily_cashflow(
+            rows("accounts"),
+            rows("transactions"),
+            rows("recurring_transactions"),
+            rows("installment_plans"),
+            rows("categories"),
+            today,
+            end,
+            safety_margin,
+        )
 
     @router.get("/dashboard/agenda")
     def agenda(

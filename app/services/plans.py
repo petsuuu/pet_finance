@@ -8,12 +8,14 @@ from sqlalchemy import select
 
 from app.schemas.plans import (
     InstallmentCreate,
+    InstallmentSetup,
     RecurrenceCancel,
     RecurrenceCreate,
     RecurrenceGenerate,
     RecurrencePatch,
     RecurrenceSetup,
 )
+from app.services.installments import setup_installment
 from app.services.ledger import Ledger
 from app.services.occurrences import next_occurrence
 from app.services.recurrences import cancel_recurrence, generate_recurrence, lock, setup_recurrence
@@ -107,9 +109,14 @@ def plans_router(dependency: Any) -> APIRouter:
         service.reference("accounts", body.account_id)
         service.reference("categories", body.category_id)
         data = body.model_dump()
-        data["total_amount"] = body.installment_amount * body.total_installments
-        if data["total_amount"] >= 10**12:
+        total = body.installment_amount * body.total_installments
+        if total >= 10**12:
             raise HTTPException(422, "Total exceeds monetary limit")
+        data["total_amount"] = total if body.first_tracked_number == 1 else None
         return service.create("installment_plans", data)
+
+    @router.post("/installments/setup")
+    def setup_plan(body: InstallmentSetup, service: Ledger = Depends(dependency)) -> dict[str, Any]:
+        return setup_installment(service, body)
 
     return router

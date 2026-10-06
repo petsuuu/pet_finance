@@ -1,6 +1,68 @@
 from fastapi.testclient import TestClient
 
 
+def test_import_installment_preview_retry_preserves_paid_date_and_amount(
+    client: TestClient,
+) -> None:
+    account = client.post("/api/v1/accounts", json={"name": "Imported wallet"}).json()["id"]
+    ids = []
+    for n, amount, day, status in [
+        (2, "108.75", "2026-09-05", "POSTED"),
+        (3, "108.74", "2026-10-06", "PENDING"),
+    ]:
+        row = client.post(
+            "/api/v1/transactions",
+            json={
+                "description": f"Monitor {n}/3",
+                "type": "EXPENSE",
+                "status": status,
+                "amount": amount,
+                "account_id": account,
+                "transaction_date": day,
+                "idempotency_key": f"import-monitor-{n}",
+            },
+        ).json()
+        ids.append(row["id"])
+    body = {
+        "description": "Monitor",
+        "installment_amount": "108.75",
+        "total_installments": 3,
+        "first_installment_date": "2026-08-06",
+        "first_tracked_number": 2,
+        "account_id": account,
+        "links": [{"transaction_id": ids[0], "number": 2}, {"transaction_id": ids[1], "number": 3}],
+    }
+    assert client.post("/api/v1/installments/setup", json=body).json()["preview"] is True
+    assert client.get("/api/v1/installments").json() == []
+    applied = client.post("/api/v1/installments/setup", json={**body, "preview": False})
+    assert applied.status_code == 200
+    identity = applied.json()["plan"]["id"]
+    assert (
+        client.post("/api/v1/installments/setup", json={**body, "preview": False}).json()["plan"][
+            "id"
+        ]
+        == identity
+    )
+    assert client.post(f"/api/v1/installments/{identity}/generate").json()["created_count"] == 0
+    rows = client.get("/api/v1/transactions").json()
+    assert len(rows) == 2
+    paid = client.get(f"/api/v1/transactions/{ids[0]}").json()
+    assert paid["transaction_date"] == "2026-09-05" and paid["status"] == "POSTED"
+    assert client.get(f"/api/v1/transactions/{ids[1]}").json()["amount"] == "108.74"
+    assert client.get("/api/v1/installments").json()[0]["total_amount"] is None
+    bad = {**body, "links": [body["links"][0], body["links"][0]], "preview": False}
+    assert client.post("/api/v1/installments/setup", json=bad).status_code == 422
+
+
+def test_cashflow_rest_preserves_ledger(client: TestClient) -> None:
+    client.post("/api/v1/accounts", json={"name": "Cashflow wallet", "opening_balance": "100"})
+    result = client.get("/api/v1/dashboard/cashflow", params={"as_of": "2026-10-06"})
+    assert result.status_code == 200
+    assert result.json()["forecast_closing_balance"] == "100.00"
+    assert len(result.json()["days"]) == 26
+    assert client.get("/api/v1/transactions").json() == []
+
+
 def test_agenda_rest_read_only_and_date_validation(client: TestClient) -> None:
     account = client.post("/api/v1/accounts", json={"name": "Agenda wallet"}).json()["id"]
     client.post(

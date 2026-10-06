@@ -264,3 +264,24 @@ canceladas, impedem outra previsão na agenda. Estimativas ausentes são buscada
 no mês solicitado. Datas dos registros são as datas dos lançamentos, não um vencimento
 ou data de pagamento reconstruídos. Transferências, pagamentos de cartão e ajustes
 técnicos de saldo não entram nos totais de consumo.
+
+## Parcelas importadas e saldo diário
+
+`POST /api/v1/installments/setup` / MCP `setup_installment` adota parcelas já registradas.
+O corpo inclui a configuração do plano, `links` com `transaction_id` e `number`, e
+`preview=true` por padrão. A aplicação vincula os IDs sem alterar descrição, valor,
+data, categoria ou status. Repetir a mesma configuração não cria outro plano.
+`first_installment_date` é a data planejada da parcela 1; `first_tracked_number` informa
+o primeiro número cujo histórico está comprovado. Geração, agenda e auditoria respeitam
+esse limite, evitando inventar parcelas antigas. Um histórico parcial deixa
+`total_amount` desconhecido. Os valores reais podem diferir do valor nominal do plano.
+
+`GET /api/v1/dashboard/cashflow?as_of=2026-10-06&safety_margin=0` / MCP `daily_cashflow`
+retorna o saldo consolidado por dia até o fim do mês, entradas e saídas esperadas,
+menor saldo e primeira data negativa. O saldo inicial considera apenas pagamentos
+registrados até a data consultada; movimentos futuros não entram duas vezes.
+Pendências antigas são projetadas no dia consultado, uma hipótese indicada no resultado.
+Previsões ausentes de regras e planos ativos são estimativas, sem gravação, respeitando
+vínculos existentes e cancelamentos. Transferências internas não alteram o saldo total.
+Receitas previstas não são dinheiro recebido; novos gastos variáveis não são estimados.
+Execute a migração 0006 antes de usar a configuração de parcelas importadas.
