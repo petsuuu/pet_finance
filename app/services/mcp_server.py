@@ -184,6 +184,23 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         return result
 
     @server.tool(annotations=read, meta=meta)
+    async def recovery_plan(
+        safety_margin: str = "0", estimated_bank_charges: str | None = None
+    ) -> dict[str, Any]:
+        """Plano para sair do negativo com datas, receitas, obrigações e cortes sugeridos.
+
+        Não altera limites, pagamentos ou saldo. Juros desconhecidos ficam sinalizados;
+        estimated_bank_charges é somente uma estimativa informada, não taxa inferida.
+        Mostre data condicionada de recuperação com orçamento variável, compromissos
+        preservados, redução necessária e quando a meta pode caber após receber as entradas.
+        Não apresente previsão como quitação ou transferência de poupança. Data nula
+        significa que o cenário não demonstrou recuperação até o fim do mês.
+        """
+        params = {k: str(v) for k, v in locals().items() if v is not None}
+        result: dict[str, Any] = await rest("GET", "/dashboard/recovery-plan", params=params)
+        return result
+
+    @server.tool(annotations=read, meta=meta)
     async def check_purchase(
         amount: str, category_id: UUID | None = None, safety_margin: str = "0"
     ) -> dict[str, Any]:

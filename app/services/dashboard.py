@@ -12,6 +12,7 @@ from app.services.budgets import budget_usage
 from app.services.cashflow import daily_cashflow
 from app.services.ledger import Ledger
 from app.services.occurrences import occurrence_dates
+from app.services.recovery import recovery_plan
 from app.services.spending import assess_purchase
 
 ZERO = Decimal("0")
@@ -153,6 +154,7 @@ def monthly_dashboard(
         "next_obligations": scenario["next_obligations"],
         "basis": scenario["basis"],
     }
+    result["recovery_plan"] = recovery_plan(flow, budgets, list(categories.values()))
     return result
 
 

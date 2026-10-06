@@ -133,4 +133,30 @@ def spending_router(dependency: Any) -> APIRouter:
         dashboard = monthly_dashboard(service, day.year, day.month, day, safety_margin)
         return assess_purchase(flow, dashboard, amount, category_id)
 
+    @router.get("/dashboard/recovery-plan")
+    def recover(
+        safety_margin: Annotated[Money, Query(ge=0)] = ZERO,
+        estimated_bank_charges: Annotated[Money | None, Query(ge=0)] = None,
+        service: Ledger = Depends(dependency),
+    ) -> dict[str, Any]:
+        from app.services.budgets import budget_usage
+        from app.services.recovery import recovery_plan
+
+        day = datetime.now(ZoneInfo("America/Sao_Paulo")).date()
+        end = date(day.year, day.month, monthrange(day.year, day.month)[1])
+        categories = rows(service, "categories")
+        flow = daily_cashflow(
+            rows(service, "accounts"),
+            rows(service, "transactions"),
+            rows(service, "recurring_transactions"),
+            rows(service, "installment_plans"),
+            categories,
+            day,
+            end,
+            safety_margin,
+        )
+        return recovery_plan(
+            flow, budget_usage(service, day.year, day.month), categories, estimated_bank_charges
+        )
+
     return router
