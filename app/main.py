@@ -31,6 +31,7 @@ from app.services.merchants import merchants_router
 from app.services.plans import plans_router
 from app.services.recurrences import lock
 from app.services.schedules import schedules_router
+from app.services.spending import spending_router
 
 
 def create_app(settings: Settings) -> FastAPI:
@@ -200,6 +201,7 @@ def create_app(settings: Settings) -> FastAPI:
     api.include_router(dashboard_router(ledger))
     api.include_router(agenda_router(ledger))
     api.include_router(budgets_router(ledger))
+    api.include_router(spending_router(ledger))
     api.include_router(plans_router(ledger))
     api.include_router(merchants_router(ledger))
     api.include_router(schedules_router(ledger))

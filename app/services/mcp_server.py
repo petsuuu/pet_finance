@@ -183,6 +183,22 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         result: dict[str, Any] = await rest("GET", "/dashboard/cashflow", params=params)
         return result
 
+    @server.tool(annotations=read, meta=meta)
+    async def check_purchase(
+        amount: str, category_id: UUID | None = None, safety_margin: str = "0"
+    ) -> dict[str, Any]:
+        """Simule se uma compra paga hoje cabe no caixa, categoria e meta de poupança.
+
+        Consulte a categoria ativa antes. Não registra a compra. Receitas previstas não
+        são saldo hoje. NAO_RECOMENDADO indica caixa ou orçamento insuficiente; REVISAR
+        indica categoria sem limite validado; CABE_NO_CENARIO é estimativa condicionada,
+        não garantia bancária. Informe saldo após compra, motivos e próximos compromissos.
+        A margem padrão zero não é uma reserva; respeite a margem indicada pelo usuário.
+        """
+        params = {k: str(v) for k, v in locals().items() if v is not None}
+        result: dict[str, Any] = await rest("GET", "/dashboard/purchase-check", params=params)
+        return result
+
     @server.tool(annotations=write, meta=meta)
     async def setup_installment(body: InstallmentSetup) -> dict[str, Any]:
         """Vincule parcelas existentes a um plano, com prévia por padrão, sem gerar lançamentos.
