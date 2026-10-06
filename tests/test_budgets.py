@@ -69,3 +69,32 @@ def test_budget_does_not_assume_partial_month_is_complete_or_duplicate_children(
     assert result[0]["basis"]["historical_months"] == ["2026-09"]
     assert result[0]["limit_amount"] == Decimal("180")
     assert result[1]["limit_amount"] == Decimal("0")
+
+
+def test_confirmed_limits_carry_forward_without_raising_for_spending() -> None:
+    from app.services.budgets import carry_forward_limits
+
+    proposed = category_limits([category()], [row(8, "1000")], 2026, 11)
+    budgets = [
+        {
+            "category_id": "cafe",
+            "year": 2026,
+            "month": 10,
+            "limit_amount": Decimal("0"),
+            "basis": {"repeat_monthly": True},
+        }
+    ]
+    carry_forward_limits(proposed, budgets, 2026, 11)
+    assert proposed[0]["limit_amount"] == Decimal("0")
+    assert proposed[0]["method"] == "MANUAL"
+    budgets.append(
+        {
+            **budgets[0],
+            "month": 11,
+            "limit_amount": Decimal("150"),
+            "basis": {"repeat_monthly": False},
+        }
+    )
+    proposed = category_limits([category()], [row(8, "1000")], 2026, 12)
+    carry_forward_limits(proposed, budgets, 2026, 12)
+    assert proposed[0]["method"] == "AUTO"

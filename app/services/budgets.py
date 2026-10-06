@@ -32,6 +32,7 @@ class BudgetSet(Input):
     month: Annotated[int, Field(ge=1, le=12)]
     category_id: UUID
     limit_amount: Annotated[Money, Field(ge=0)]
+    repeat_monthly: bool = False
 
 
 def rows(service: Ledger, name: str) -> list[dict[str, Any]]:
@@ -139,15 +140,35 @@ def category_limits(
     return result
 
 
+def carry_forward_limits(
+    proposed: list[dict[str, Any]], budgets: list[dict[str, Any]], year: int, month: int
+) -> None:
+    latest: dict[Any, dict[str, Any]] = {}
+    for budget in sorted(budgets, key=lambda r: (r["year"], r["month"])):
+        if (budget["year"], budget["month"]) < (year, month):
+            latest[budget["category_id"]] = budget
+    for item in proposed:
+        previous = latest.get(item["category_id"])
+        if previous and previous["basis"].get("repeat_monthly"):
+            item.update(
+                limit_amount=previous["limit_amount"],
+                method="MANUAL",
+                basis={
+                    **previous["basis"],
+                    "carried_from": f"{previous['year']}-{previous['month']:02d}",
+                },
+            )
+
+
 def generate_budgets(service: Ledger, body: BudgetGenerate) -> dict[str, Any]:
     lock(service)
     proposed = category_limits(
         rows(service, "categories"), rows(service, "transactions"), body.year, body.month
     )
+    budgets = rows(service, "budgets")
+    carry_forward_limits(proposed, budgets, body.year, body.month)
     existing = {
-        r["category_id"]: r
-        for r in rows(service, "budgets")
-        if (r["year"], r["month"]) == (body.year, body.month)
+        r["category_id"]: r for r in budgets if (r["year"], r["month"]) == (body.year, body.month)
     }
     saved = []
     for item in proposed:
@@ -302,23 +323,31 @@ def budgets_router(dependency: Any) -> APIRouter:
         return generate_budgets(service, body)
 
     @router.post("/budgets/set")
-    def set_budget(body: BudgetSet, service: Ledger = Depends(dependency)) -> dict[str, Any]:
-        lock(service)
-        category = service.get("categories", body.category_id)
-        if not category["active"]:
-            raise HTTPException(422, "Inactive category")
-        existing = next(
-            (
-                r
-                for r in rows(service, "budgets")
-                if (r["category_id"], r["year"], r["month"])
-                == (body.category_id, body.year, body.month)
-            ),
-            None,
-        )
-        data = {**body.model_dump(), "method": "MANUAL", "basis": {"source": "user"}}
-        if existing:
-            return service.patch("budgets", existing["id"], data)
-        return service.create("budgets", data)
+    def set_month_budget(body: BudgetSet, service: Ledger = Depends(dependency)) -> dict[str, Any]:
+        return set_budget(service, body)
 
     return router
+
+
+def set_budget(service: Ledger, body: BudgetSet) -> dict[str, Any]:
+    lock(service)
+    category = service.get("categories", body.category_id)
+    if not category["active"]:
+        raise HTTPException(422, "Inactive category")
+    existing = next(
+        (
+            r
+            for r in rows(service, "budgets")
+            if (r["category_id"], r["year"], r["month"])
+            == (body.category_id, body.year, body.month)
+        ),
+        None,
+    )
+    data = {
+        **body.model_dump(exclude={"repeat_monthly"}),
+        "method": "MANUAL",
+        "basis": {"source": "user", "repeat_monthly": body.repeat_monthly},
+    }
+    if existing:
+        return service.patch("budgets", existing["id"], data)
+    return service.create("budgets", data)
