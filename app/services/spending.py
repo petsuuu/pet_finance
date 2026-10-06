@@ -34,7 +34,7 @@ def assess_purchase(
     immediate = flow["recorded_balance_as_of"] - today["outflow"] - flow["safety_margin"]
     dated = min(r["after_safety_margin"] for r in flow["days"])
     cash_capacity = max(ZERO, min(immediate, dated))
-    planning_capacity = max(ZERO, planned + allowance)
+    planning_capacity = max(ZERO, planned + allowance) if planned >= ZERO else ZERO
     capacity = min(cash_capacity, planning_capacity)
     if known:
         capacity = min(capacity, allowance)

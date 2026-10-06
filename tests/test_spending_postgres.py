@@ -19,6 +19,18 @@ def test_purchase_readonly_validated_and_exposed_in_dashboard(client: TestClient
             "limit_amount": "100",
         },
     )
+    assert (
+        client.post(
+            "/api/v1/budgets/generate",
+            json={
+                "year": today.year,
+                "month": today.month,
+                "savings_target": "500",
+                "preview": False,
+            },
+        ).status_code
+        == 200
+    )
     client.post(
         "/api/v1/transactions",
         json={

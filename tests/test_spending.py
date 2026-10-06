@@ -71,3 +71,8 @@ def test_missing_budget_requires_review_and_underfunded_goal_blocks() -> None:
     assert assess_purchase(f, d, D("20"))["decision"] == "REVISAR"
     d["budget_planning"]["forecast_after_category_budgets_and_goal"] = D("-1")
     assert assess_purchase(f, d, D("20"), c)["decision"] == "NAO_RECOMENDADO"
+
+
+def test_underfunded_plan_never_suggests_positive_capacity() -> None:
+    f, d, c = scenario("300", "200", "-50")
+    assert assess_purchase(f, d, D("20"), c)["maximum_within_scenario"] == 0
