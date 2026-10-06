@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 
 from app.schemas.inputs import Money
+from app.services.budgets import budget_usage
 from app.services.ledger import Ledger
 from app.services.occurrences import occurrence_dates
 
@@ -86,6 +87,10 @@ def monthly_dashboard(
             virtual_income += rule["expected_amount"]
     commitments = pending_expense + virtual_expense
     expected_income = pending_income + virtual_income
+    budgets = budget_usage(service, year, month)
+    planned = budgets["unrecorded_planned_spending"]
+    target = budgets["savings_target"] or ZERO
+    after_plan = balance + expected_income - commitments - planned - target - safety_margin
     return {
         "year": year,
         "month": month,
@@ -118,6 +123,14 @@ def monthly_dashboard(
         "projection_basis": (
             "Pending transactions and active recurrence rules; no variable spending estimate"
         ),
+        "category_budgets": budgets,
+        "budget_planning": {
+            "forecast_after_category_budgets_and_goal": after_plan,
+            "planning_shortfall": max(ZERO, -after_plan),
+            "liquidity_warning": balance < ZERO,
+            "basis": "Expected income is not received cash. Remaining category plans, target "
+            "and safety margin deducted from forecast; not a spending authorization.",
+        },
     }
 
 

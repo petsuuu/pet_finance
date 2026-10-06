@@ -285,3 +285,28 @@ Previsões ausentes de regras e planos ativos são estimativas, sem gravação, 
 vínculos existentes e cancelamentos. Transferências internas não alteram o saldo total.
 Receitas previstas não são dinheiro recebido; novos gastos variáveis não são estimados.
 Execute a migração 0006 antes de usar a configuração de parcelas importadas.
+
+
+### Monthly category budgets
+
+Owner-scoped budget APIs and MCP tools persist monthly caps, historical evidence,
+manual overrides and usage warnings. monthly_dashboard exposes category_budgets
+and budget_planning through existing connections. Proposals use the median of up
+to three preceding observed complete calendar months, net of refunds, excluding
+identified vacation history. Direct categories are counted once, without parent
+rollup; technical adjustments and income-only categories are excluded. Known
+recurring/installment commitments are protected. Flexible spending receives a
+10% reduction except Refeições fora, which may be necessary for work. Values round
+up to R$5. All current consumption, including vacations, counts against usage.
+Missing evidence means NEEDS_REVIEW. Existing caps never automatically increase.
+
+For this personal deployment, migration 0007 initializes the configured owner's
+current-month budgets and R$500 savings target when their ledger contains
+transactions, as explicitly requested. Other owners and empty ledgers are
+untouched. Only budgets/preferences/audit entries change. With preferences enabled,
+a CHATGPT/MANUAL transaction initializes missing current-month caps using updated
+history; reads never write. Manual overrides are preserved. Future months wait
+for observed history. The target is a plan, not a transfer. Dashboard planning
+subtracts remaining allowances, the target and safety margin from forecast closing
+balance and flags negative liquidity. Forecast income is not authorization to
+spend, and no bank reconciliation is implied.

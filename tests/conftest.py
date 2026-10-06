@@ -32,7 +32,7 @@ def client(migrate: None) -> Iterator[TestClient]:
     engine = build_engine(settings.database_url)
     with engine.begin() as connection:
         connection.execute(
-            text("""TRUNCATE idempotency_requests, transactions,
+            text("""TRUNCATE budget_preferences, idempotency_requests, transactions,
             accounts, categories, audit_log CASCADE""")
         )
     with TestClient(create_app(settings), headers={"Authorization": "Bearer test-token"}) as c:
