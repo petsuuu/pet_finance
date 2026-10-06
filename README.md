@@ -310,3 +310,22 @@ for observed history. The target is a plan, not a transfer. Dashboard planning
 subtracts remaining allowances, the target and safety margin from forecast closing
 balance and flags negative liquidity. Forecast income is not authorization to
 spend, and no bank reconciliation is implied.
+
+
+### Immediate purchase simulation
+
+GET `/api/v1/dashboard/purchase-check` and read-only MCP `check_purchase` accept
+amount, optional active category and nonnegative safety_margin. They simulate
+immediate payment today through month end, without recording any transaction.
+The maximum respects current cash minus today's obligations (ignoring today's
+unreceived inflows), the lowest dated forecast, category remaining and the monthly
+plan with savings target. A purchase consumes its category's existing planned
+allowance rather than deducting it twice. Missing limits require review.
+
+Results distinguish NAO_RECOMENDADO, REVISAR and CABE_NO_CENARIO, with reasons,
+post-purchase balance, first shortfall date and five upcoming obligations plus total
+count. A shortfall does not prove a specific bill will go unpaid. Consolidated
+projection does not establish liquidity in a particular account or guarantee
+future income. No credit financing, intraday ordering or unknown bank charges are
+assumed. monthly_dashboard exposes spending_today as a general summary usable
+through existing connections. Purchase simulations require today's São Paulo date.

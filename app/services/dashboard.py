@@ -9,8 +9,10 @@ from sqlalchemy import select
 
 from app.schemas.inputs import Money
 from app.services.budgets import budget_usage
+from app.services.cashflow import daily_cashflow
 from app.services.ledger import Ledger
 from app.services.occurrences import occurrence_dates
+from app.services.spending import assess_purchase
 
 ZERO = Decimal("0")
 
@@ -91,7 +93,7 @@ def monthly_dashboard(
     planned = budgets["unrecorded_planned_spending"]
     target = budgets["savings_target"] or ZERO
     after_plan = balance + expected_income - commitments - planned - target - safety_margin
-    return {
+    result = {
         "year": year,
         "month": month,
         "as_of": as_of,
@@ -132,6 +134,26 @@ def monthly_dashboard(
             "and safety margin deducted from forecast; not a spending authorization.",
         },
     }
+    flow = daily_cashflow(
+        accounts,
+        transactions,
+        rules,
+        rows("installment_plans"),
+        list(categories.values()),
+        as_of,
+        end,
+        safety_margin,
+    )
+    scenario = assess_purchase(flow, result, ZERO)
+    result["spending_today"] = {
+        "maximum_without_category": scenario["maximum_within_scenario"],
+        "recorded_balance": scenario["recorded_balance"],
+        "lowest_forecast_balance": flow["lowest_balance"],
+        "first_negative_date": flow["first_negative_date"],
+        "next_obligations": scenario["next_obligations"],
+        "basis": scenario["basis"],
+    }
+    return result
 
 
 def dashboard_router(dependency: Any) -> APIRouter:
