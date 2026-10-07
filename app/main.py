@@ -28,6 +28,7 @@ from app.services.dashboard import dashboard_router
 from app.services.imports import imports_router
 from app.services.ledger import Ledger
 from app.services.merchants import merchants_router
+from app.services.payments import payment_router
 from app.services.plans import plans_router
 from app.services.recurrences import lock
 from app.services.schedules import schedules_router
@@ -159,6 +160,8 @@ def create_app(settings: Settings) -> FastAPI:
                 .offset(offset)
             ).mappings()
         ]
+
+    api.include_router(payment_router(ledger))
 
     @api.get("/api/v1/transactions/{identity}")
     def get_transaction(identity: UUID, service: Service) -> dict[str, Any]:

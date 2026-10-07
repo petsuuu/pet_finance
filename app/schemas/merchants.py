@@ -16,3 +16,8 @@ class MerchantSetup(Input):
 class MerchantPatch(Input):
     default_category_id: UUID | None = None
     notes: str | None = None
+
+
+class MerchantLearn(Input):
+    name: Name
+    aliases: Annotated[list[Name], Field(max_length=50)] = Field(default_factory=list)

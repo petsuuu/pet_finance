@@ -8,7 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 
-from app.schemas.merchants import MerchantPatch, MerchantSetup
+from app.schemas.merchants import MerchantLearn, MerchantPatch, MerchantSetup
 from app.services.ledger import Ledger
 from app.services.recurrences import lock
 
@@ -128,6 +128,26 @@ def merchants_router(dependency: Any) -> APIRouter:
     @router.post("/setup")
     def setup(body: MerchantSetup, service: Ledger = Depends(dependency)) -> dict[str, Any]:
         return setup_merchant(service, body)
+
+    @router.post("/learn/{identity}")
+    def learn(
+        identity: UUID, body: MerchantLearn, service: Ledger = Depends(dependency)
+    ) -> dict[str, Any]:
+        lock(service)
+        transaction = service.get("transactions", identity)
+        if transaction["type"] != "EXPENSE" or transaction["status"] == "CANCELLED":
+            raise HTTPException(422, "Learn only from a confirmed expense classification")
+        if transaction["category_id"] is None:
+            raise HTTPException(422, "Confirm a category before learning a merchant")
+        return setup_merchant(
+            service,
+            MerchantSetup(
+                name=body.name,
+                aliases=body.aliases,
+                default_category_id=transaction["category_id"],
+                notes="Category explicitly confirmed by user for future transactions.",
+            ),
+        )
 
     @router.patch("/{identity}")
     def patch(
