@@ -18,7 +18,7 @@ from sqlalchemy import Engine
 
 from app.core.config import Settings
 from app.schemas.inputs import TransactionCreate, TransactionPatch
-from app.schemas.merchants import MerchantPatch, MerchantSetup
+from app.schemas.merchants import MerchantLearn, MerchantPatch, MerchantSetup
 from app.schemas.plans import (
     InstallmentSetup,
     RecurrenceCancel,
@@ -28,6 +28,7 @@ from app.schemas.plans import (
 )
 from app.services.budgets import BudgetGenerate, BudgetSet
 from app.services.oauth import OwnerOAuth
+from app.services.payments import PaymentInput
 
 
 def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
@@ -343,6 +344,54 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         result: dict[str, Any] = await rest(
             "PATCH", f"/merchants/{identity}", body.model_dump(mode="json", exclude_unset=True)
         )
+        return result
+
+    @server.tool(annotations=write, meta=meta)
+    async def learn_merchant_from_transaction(
+        identity: UUID, body: MerchantLearn
+    ) -> dict[str, Any]:
+        """Salve estabelecimento e aliases confirmados com categoria de gasto identificado.
+
+        Só use após confirmação do usuário de nome, categoria habitual e aliases.
+        Compras ambíguas exigem esclarecimento; categoria explícita do produto prevalece.
+        Não recategoriza nem modifica lançamentos antigos. Retry não duplica cadastro.
+        """
+        result: dict[str, Any] = await rest(
+            "POST", f"/merchants/learn/{identity}", body.model_dump(mode="json")
+        )
+        return result
+
+    @server.tool(annotations=write, meta=meta)
+    async def settle_transaction(identity: UUID, body: PaymentInput) -> dict[str, Any]:
+        """Pague/receba parte ou todo o saldo pendente em uma única operação atômica.
+
+        Consulte a obrigação antes. amount é o valor pago agora, não o total acumulado.
+        Reuse idempotency_key nas tentativas; preserva restante, data prevista e vínculo.
+        Não altera valor mensal da regra nem confirma datas futuras.
+        """
+        result: dict[str, Any] = await rest(
+            "POST", f"/transactions/{identity}/settle", body.model_dump(mode="json")
+        )
+        return result
+
+    @server.tool(annotations=read, meta=meta)
+    async def list_transaction_history(
+        identity: UUID | None = None,
+        since: date | None = None,
+        until: date | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """Consulte histórico antes/depois, paginado, sem alterar dados.
+
+        Datas filtram alterações no horário de São Paulo, não vencimentos.
+        Importações antigas podem não ter o histórico anterior completo.
+        """
+        params = {"limit": str(limit), "offset": str(offset)}
+        for key, value in {"identity": identity, "since": since, "until": until}.items():
+            if value is not None:
+                params[key] = str(value)
+        result: dict[str, Any] = await rest("GET", "/transactions/history", params=params)
         return result
 
     @server.tool(annotations=write, meta=meta)

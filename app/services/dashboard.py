@@ -13,6 +13,7 @@ from app.services.cashflow import daily_cashflow
 from app.services.comparison import category_comparison
 from app.services.ledger import Ledger
 from app.services.occurrences import occurrence_dates
+from app.services.payments import payment_groups
 from app.services.radar import recurring_radar
 from app.services.recovery import recovery_plan
 from app.services.spending import assess_purchase
@@ -160,8 +161,21 @@ def monthly_dashboard(
     result["category_comparison"] = category_comparison(
         list(categories.values()), transactions, as_of
     )
+    groups, radar_transactions = payment_groups(transactions, rows("payment_operations"))
+    result["partial_payments"] = [
+        g
+        for g in groups
+        if (
+            g["original_due_date"][:7] == f"{year}-{month:02d}"
+            or any(
+                str(r["id"]) in g["payment_ids"]
+                and (r["transaction_date"].year, r["transaction_date"].month) == (year, month)
+                for r in transactions
+            )
+        )
+    ]
     result["recurring_radar"] = recurring_radar(
-        rules, rows("installment_plans"), transactions, list(categories.values()), as_of
+        rules, rows("installment_plans"), radar_transactions, list(categories.values()), as_of
     )
     return result
 
