@@ -301,7 +301,7 @@ class OwnerOAuth:
         def token(
             grant_type: str = Form(),
             client_id: str = Form(),
-            resource: str = Form(),
+            resource: str | None = Form(default=None),
             code: str = Form(default=""),
             code_verifier: str = Form(default=""),
             redirect_uri: str = Form(default=""),
@@ -321,8 +321,11 @@ class OwnerOAuth:
                 if (
                     data is None
                     or data["client_id"] != client_id
-                    or resource != self.resource
-                    or data["resource"] != resource
+                    or data["resource"] != self.resource
+                    # A refresh is already bound to its original resource. Some
+                    # clients omit this optional indicator when renewing access.
+                    or (resource is not None and resource != self.resource)
+                    or (kind == "code" and resource is None)
                 ):
                     return error("invalid_grant")
                 if kind == "code":

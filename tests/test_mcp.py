@@ -293,6 +293,43 @@ def test_oauth_persistence_refresh_expiry_and_password_rotation(mcp_client: Test
     engine.dispose()
 
 
+@pytest.mark.parametrize("include_resource", [False, True])
+def test_refresh_after_access_expiry_without_new_login(
+    mcp_client: TestClient, include_resource: bool
+) -> None:
+    identity, code = grant(mcp_client)
+    issued = exchange(mcp_client, identity, code).json()
+    engine = build_engine(config().database_url)
+    with engine.begin() as connection:
+        connection.execute(
+            text("UPDATE oauth_records SET expires_at=now()-interval '1 second' WHERE id=:id"),
+            {"id": digest(issued["access_token"])},
+        )
+    assert rpc(mcp_client, issued["access_token"], "tools/list", {}).status_code == 401
+    refresh = {
+        "grant_type": "refresh_token",
+        "client_id": identity,
+        "refresh_token": issued["refresh_token"],
+    }
+    if include_resource:
+        refresh["resource"] = ORIGIN + "/mcp"
+    for changes in [
+        {"resource": "https://other.example/mcp"},
+        {"client_id": "other-client"},
+    ]:
+        assert mcp_client.post("/oauth/token", data={**refresh, **changes}).status_code == 400
+    renewed = mcp_client.post("/oauth/token", data=refresh)
+    assert renewed.status_code == 200
+    assert renewed.json()["refresh_token"] != issued["refresh_token"]
+    assert rpc(mcp_client, renewed.json()["access_token"], "tools/list", {}).status_code == 200
+    assert mcp_client.post("/oauth/token", data=refresh).status_code == 400
+    # A later renewal still works with a freshly constructed server using the same DB.
+    with TestClient(create_app(config()), base_url=ORIGIN) as restarted:
+        refresh["refresh_token"] = renewed.json()["refresh_token"]
+        assert restarted.post("/oauth/token", data=refresh).status_code == 200
+    engine.dispose()
+
+
 def test_login_rate_limit_counts_failed_attempts(mcp_client: TestClient) -> None:
     for _ in range(20):
         assert (
