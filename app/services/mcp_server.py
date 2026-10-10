@@ -40,7 +40,8 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         "lançamentos antes de gravar. Identifique pagamentos pendentes antes de atualizá-los. "
         "Mantenha a mesma idempotency_key ao repetir uma inclusão. Não repita gravações no CloFin. "
         "Ajuste de Saldo não é consumo. Para parcelas importadas, use setup_installment para "
-        "vincular lançamentos existentes ao plano sem duplicá-los. A projeção não inclui novos gastos variáveis.",
+        "vincular lançamentos existentes ao plano sem duplicá-los. "
+        "A projeção não inclui novos gastos variáveis.",
         stateless_http=True,
         json_response=True,
         token_verifier=oauth,

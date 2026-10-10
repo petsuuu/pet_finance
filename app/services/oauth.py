@@ -6,6 +6,7 @@ an MCP bearer token. Grants live in PostgreSQL so workers/redeploys share state.
 
 import base64
 import hashlib
+import hmac
 import html
 import json
 import re
@@ -62,8 +63,15 @@ class OwnerOAuth:
         self.password = settings.mcp_login_password.get_secret_value()
         self.binding = digest(self.password)
 
-    def save(self, connection: Connection, kind: str, payload: dict[str, Any], seconds: int) -> str:
-        token = secrets.token_urlsafe(48)
+    def save(
+        self,
+        connection: Connection,
+        kind: str,
+        payload: dict[str, Any],
+        seconds: int,
+        token: str | None = None,
+    ) -> str:
+        token = token or secrets.token_urlsafe(48)
         connection.execute(
             text("""INSERT INTO oauth_records (id,user_id,kind,payload,expires_at)
                 VALUES (:id,:user,:kind,CAST(:payload AS jsonb),:expires)"""),
@@ -135,10 +143,28 @@ class OwnerOAuth:
             subject=str(self.settings.user_id),
         )
 
-    def tokens(self, connection: Connection, data: dict[str, Any]) -> JSONResponse:
+    def refresh_pair(self, credential: str) -> tuple[str, str]:
+        # Reconstruct the same successor on a short retry without storing raw tokens.
+        def derive(kind: str) -> str:
+            value = hmac.digest(
+                self.password.encode(),
+                ("pet-refresh-v1:" + kind + ":" + credential).encode(),
+                "sha384",
+            )
+            return base64.urlsafe_b64encode(value).rstrip(b"=").decode()
+
+        return derive("access"), derive("refresh")
+
+    def tokens(
+        self,
+        connection: Connection,
+        data: dict[str, Any],
+        credential: str | None = None,
+    ) -> JSONResponse:
         payload = {"client_id": data["client_id"], "resource": self.resource}
-        access = self.save(connection, "access", payload, 3600)
-        refresh = self.save(connection, "refresh", payload, 30 * 86400)
+        pair = self.refresh_pair(credential) if credential else (None, None)
+        access = self.save(connection, "access", payload, 3600, token=pair[0])
+        refresh = self.save(connection, "refresh", payload, 30 * 86400, token=pair[1])
         return JSONResponse(
             {
                 "access_token": access,
@@ -318,6 +344,32 @@ class OwnerOAuth:
                 kind = "code" if grant_type == "authorization_code" else "refresh"
                 credential = code if kind == "code" else refresh_token
                 data = self.load(connection, credential, kind, lock=True)
+                if data is None and kind == "refresh":
+                    retry = self.load(connection, credential, "refresh_retry", lock=True)
+                    if (
+                        retry is not None
+                        and retry["client_id"] == client_id
+                        and retry["resource"] == self.resource
+                        and (resource is None or resource == self.resource)
+                    ):
+                        access, refresh = self.refresh_pair(credential)
+                        access_data = self.load(connection, access, "access")
+                        refresh_data = self.load(connection, refresh, "refresh")
+                        if access_data is not None and refresh_data is not None:
+                            return JSONResponse(
+                                {
+                                    "access_token": access,
+                                    "token_type": "Bearer",
+                                    "expires_in": max(
+                                        0,
+                                        access_data["expires"] - int(datetime.now(UTC).timestamp()),
+                                    ),
+                                    "refresh_token": refresh,
+                                    "scope": "finance",
+                                },
+                                headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+                            )
+                    return error("invalid_grant")
                 if (
                     data is None
                     or data["client_id"] != client_id
@@ -341,14 +393,31 @@ class OwnerOAuth:
                     ):
                         return error("invalid_grant")
                 self.delete(connection, credential)
-                return self.tokens(connection, data)
+                response = self.tokens(connection, data, credential if kind == "refresh" else None)
+                if kind == "refresh":
+                    # Concurrent requests or a lost response get the same tokens for
+                    # 30 seconds. Never issue another pair or extend their lifetime.
+                    self.save(
+                        connection,
+                        "refresh_retry",
+                        {
+                            "client_id": client_id,
+                            "resource": self.resource,
+                        },
+                        30,
+                        token=credential,
+                    )
+                return response
 
         @router.post("/oauth/revoke", include_in_schema=False)
         def revoke(token: str = Form(), client_id: str = Form()) -> JSONResponse:
             with self.engine.begin() as connection:
-                for kind in ("access", "refresh"):
+                for kind in ("access", "refresh", "refresh_retry"):
                     data = self.load(connection, token, kind, lock=True)
                     if data and data["client_id"] == client_id:
+                        if kind == "refresh_retry":
+                            for successor in self.refresh_pair(token):
+                                self.delete(connection, successor)
                         self.delete(connection, token)
             return JSONResponse({}, headers={"Cache-Control": "no-store"})
 

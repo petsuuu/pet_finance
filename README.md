@@ -216,7 +216,11 @@ product. It supports ChatGPT HTTPS callbacks on `chatgpt.com` (the stable callba
 or `/connector/oauth/{callback_id}`); other clients require an explicit code change
 and review of their exact callback. Authorization uses S256 PKCE, browser-bound
 consent with CSRF and Origin checks, two-minute single-use codes, one-hour access
-tokens, and rotating refresh tokens valid for 30 days. Tokens are stored only as
+tokens, and rotating refresh tokens valid for 30 days. Concurrent renewals or a
+retry after a lost response reuse the same successor tokens for at most 30 seconds;
+they do not create additional tokens or extend expiry. After that window, the old
+refresh token is rejected. Revoking the successor prevents retry from restoring it.
+Tokens are stored only as
 SHA-256 hashes in PostgreSQL. The login form and token responses use no-store.
 
 Client registration, authorization starts and login attempts are limited globally
