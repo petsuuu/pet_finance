@@ -2,6 +2,7 @@ import base64
 import hashlib
 import re
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlsplit
 
@@ -270,7 +271,10 @@ def test_oauth_persistence_refresh_expiry_and_password_rotation(mcp_client: Test
     }
     renewed = mcp_client.post("/oauth/token", data=refresh)
     assert renewed.status_code == 200
-    assert mcp_client.post("/oauth/token", data=refresh).status_code == 400
+    assert (
+        mcp_client.post("/oauth/token", data=refresh).json()["refresh_token"]
+        == renewed.json()["refresh_token"]
+    )
     assert (
         mcp_client.post(
             "/oauth/revoke",
@@ -322,12 +326,93 @@ def test_refresh_after_access_expiry_without_new_login(
     assert renewed.status_code == 200
     assert renewed.json()["refresh_token"] != issued["refresh_token"]
     assert rpc(mcp_client, renewed.json()["access_token"], "tools/list", {}).status_code == 200
-    assert mcp_client.post("/oauth/token", data=refresh).status_code == 400
+    assert (
+        mcp_client.post("/oauth/token", data=refresh).json()["refresh_token"]
+        == renewed.json()["refresh_token"]
+    )
     # A later renewal still works with a freshly constructed server using the same DB.
     with TestClient(create_app(config()), base_url=ORIGIN) as restarted:
         refresh["refresh_token"] = renewed.json()["refresh_token"]
         assert restarted.post("/oauth/token", data=refresh).status_code == 200
     engine.dispose()
+
+
+def test_concurrent_refresh_has_one_successor_and_bounded_retry(mcp_client: TestClient) -> None:
+    identity, code = grant(mcp_client)
+    issued = exchange(mcp_client, identity, code).json()
+    refresh = {
+        "grant_type": "refresh_token",
+        "client_id": identity,
+        "refresh_token": issued["refresh_token"],
+    }
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        responses = list(
+            pool.map(lambda _: mcp_client.post("/oauth/token", data=refresh), range(2))
+        )
+    assert [r.status_code for r in responses] == [200, 200]
+    first, second = (r.json() for r in responses)
+    assert first["access_token"] == second["access_token"]
+    assert first["refresh_token"] == second["refresh_token"]
+    engine = build_engine(config().database_url)
+    with engine.connect() as connection:
+        stored = connection.execute(
+            text("SELECT id, kind, payload, expires_at FROM oauth_records")
+        ).all()
+        assert all(
+            secret not in str(stored)
+            for secret in [
+                issued["refresh_token"],
+                first["refresh_token"],
+                first["access_token"],
+                PASSWORD,
+            ]
+        )
+        before = {r.id: r.expires_at for r in stored if r.kind in ("access", "refresh")}
+    with TestClient(create_app(config()), base_url=ORIGIN) as restarted:
+        repeated = restarted.post("/oauth/token", data=refresh)
+        assert repeated.status_code == 200
+        assert repeated.json()["refresh_token"] == first["refresh_token"]
+    for changes in [
+        {"client_id": "wrong-client"},
+        {"resource": "https://other.example/mcp"},
+    ]:
+        assert mcp_client.post("/oauth/token", data={**refresh, **changes}).status_code == 400
+    with engine.begin() as connection:
+        after = connection.execute(
+            text("SELECT id, expires_at FROM oauth_records WHERE kind IN ('access','refresh')")
+        ).all()
+        assert {r.id: r.expires_at for r in after} == before
+        connection.execute(
+            text(
+                "UPDATE oauth_records SET expires_at=now()-interval '1 second' "
+                "WHERE kind='refresh_retry'"
+            )
+        )
+    assert mcp_client.post("/oauth/token", data=refresh).status_code == 400
+    refresh["refresh_token"] = first["refresh_token"]
+    assert mcp_client.post("/oauth/token", data=refresh).status_code == 200
+    engine.dispose()
+
+
+@pytest.mark.parametrize("revoke_original", [False, True])
+def test_refresh_retry_does_not_restore_revoked_tokens(
+    mcp_client: TestClient,
+    revoke_original: bool,
+) -> None:
+    identity, code = grant(mcp_client)
+    issued = exchange(mcp_client, identity, code).json()
+    refresh = {
+        "grant_type": "refresh_token",
+        "client_id": identity,
+        "refresh_token": issued["refresh_token"],
+    }
+    renewed = mcp_client.post("/oauth/token", data=refresh).json()
+    token = issued["refresh_token"] if revoke_original else renewed["refresh_token"]
+    assert (
+        mcp_client.post("/oauth/revoke", data={"token": token, "client_id": identity}).status_code
+        == 200
+    )
+    assert mcp_client.post("/oauth/token", data=refresh).status_code == 400
 
 
 def test_login_rate_limit_counts_failed_attempts(mcp_client: TestClient) -> None:
