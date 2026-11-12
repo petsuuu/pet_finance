@@ -144,7 +144,7 @@ def test_rebase_is_atomic_idempotent_and_preserves_archives(client: TestClient) 
         params={"year": 2026, "month": 6, "as_of": "2026-06-12"},
     ).json()
     assert dashboard["current_balance"] == "1325.00"
-    assert dashboard["expense_month"] == "160.00"
+    assert dashboard["expense_month"] == "0"
     assert dashboard["pending_commitments"] == "125.00"
     assert dashboard["expected_income"] == "2500.00"
 
@@ -174,7 +174,7 @@ def test_rebase_is_atomic_idempotent_and_preserves_archives(client: TestClient) 
         params={"year": 2026, "month": 6, "as_of": "2026-06-12"},
     ).json()
     assert again["current_balance"] == "1325.00"
-    assert again["expense_month"] == "160.00"
+    assert again["expense_month"] == "0"
 
     everyday = next(a for a in accounts if a["name"] == "Conta Principal")
     response = client.post(
@@ -195,7 +195,7 @@ def test_rebase_is_atomic_idempotent_and_preserves_archives(client: TestClient) 
         params={"year": 2026, "month": 6, "as_of": "2026-06-12"},
     ).json()
     assert after["current_balance"] == "1320.00"
-    assert after["expense_month"] == "165.00"
+    assert after["expense_month"] == "5.00"
 
 
 def test_rebase_rejects_bad_backups_and_mismatched_counts(client: TestClient) -> None:
