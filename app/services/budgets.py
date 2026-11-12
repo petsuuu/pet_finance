@@ -219,9 +219,7 @@ def generate_budgets(service: Ledger, body: BudgetGenerate) -> dict[str, Any]:
 def budget_usage(service: Ledger, year: int, month: int) -> dict[str, Any]:
     accounts = rows(service, "accounts")
     transactions = [
-        row
-        for row in rows(service, "transactions")
-        if posted_after_opening_balance(row, accounts)
+        row for row in rows(service, "transactions") if posted_after_opening_balance(row, accounts)
     ]
     categories = {r["id"]: r for r in rows(service, "categories")}
     prefs = rows(service, "budget_preferences")
