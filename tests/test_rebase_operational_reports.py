@@ -88,9 +88,7 @@ def test_rebased_agenda_and_dashboard_ignore_archives_and_pre_cutoff_payments(
     assert len(active) == 3
     assert len(history) == 2
     historical = next(t for t in active if t["description"] == "Historical school bill")
-    paid = client.patch(
-        f"/api/v1/transactions/{historical['id']}", json={"status": "POSTED"}
-    )
+    paid = client.patch(f"/api/v1/transactions/{historical['id']}", json={"status": "POSTED"})
     assert paid.status_code == 200, paid.text
 
     params = {"year": 2026, "month": 11, "as_of": "2026-11-12"}
