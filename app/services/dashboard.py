@@ -157,7 +157,9 @@ def monthly_dashboard(
     result["category_comparison"] = category_comparison(
         list(categories.values()), operational_transactions, as_of
     )
-    groups, radar_transactions = payment_groups(operational_transactions, rows("payment_operations"))
+    groups, radar_transactions = payment_groups(
+        operational_transactions, rows("payment_operations")
+    )
     result["partial_payments"] = [
         g
         for g in groups
