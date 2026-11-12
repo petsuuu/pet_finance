@@ -5,7 +5,6 @@ from typing import Annotated, Any
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
 
 from app.schemas.inputs import Money
 from app.services.budgets import budget_usage
@@ -16,6 +15,8 @@ from app.services.occurrences import occurrence_dates
 from app.services.payments import payment_groups
 from app.services.radar import recurring_radar
 from app.services.recovery import recovery_plan
+from app.services.scoping import account_balance
+from app.services.scoping import rows as scoped_rows
 from app.services.spending import assess_purchase
 
 ZERO = Decimal("0")
@@ -30,19 +31,13 @@ def monthly_dashboard(
         raise HTTPException(422, "as_of must belong to requested month")
 
     def rows(name: str) -> list[dict[str, Any]]:
-        table = service.table(name)
-        return [
-            dict(r)
-            for r in service.connection.execute(
-                select(table).where(table.c.user_id == service.user_id)
-            ).mappings()
-        ]
+        return scoped_rows(service, name)
 
     accounts = rows("accounts")
     transactions = rows("transactions")
     categories = {r["id"]: r for r in rows("categories")}
     rules = rows("recurring_transactions")
-    balance = sum((r["opening_balance"] for r in accounts), ZERO)
+    balance = account_balance(accounts, transactions, as_of)
     income = expense = pending_expense = pending_income = ZERO
     classes = {"ESSENTIAL": ZERO, "FUNDAMENTAL": ZERO, "SUPERFLUOUS": ZERO, "UNCLASSIFIED": ZERO}
     totals: dict[Any, Decimal] = {}
@@ -54,10 +49,6 @@ def monthly_dashboard(
             categories.get(row["category_id"], {}).get("name") == "Ajuste de Saldo"
         )
         if row["status"] == "POSTED" and day <= as_of:
-            if kind in {"INCOME", "YIELD", "REFUND", "ADJUSTMENT"}:
-                balance += amount
-            elif kind in {"EXPENSE", "CARD_PAYMENT"}:
-                balance -= amount
             if day >= start and not technical_adjustment:
                 if kind in {"INCOME", "YIELD"}:
                     income += amount

@@ -6,16 +6,23 @@ from typing import Any
 
 from app.services.agenda import expense_agenda
 from app.services.occurrences import occurrence_dates
+from app.services.scoping import account_balance
 
 ZERO = Decimal("0")
 
 
-def movement(row: dict[str, Any]) -> Decimal:
+def movement(row: dict[str, Any], included_accounts: set[Any] | None = None) -> Decimal:
     if row["type"] in {"INCOME", "REFUND", "YIELD", "ADJUSTMENT"}:
         return Decimal(row["amount"])
     if row["type"] in {"EXPENSE", "CARD_PAYMENT"}:
         return -Decimal(row["amount"])
-    # Both transfer legs belong to the same owner and cancel in the consolidated total.
+    if row["type"] == "TRANSFER" and included_accounts is not None:
+        delta = ZERO
+        if row["account_id"] in included_accounts:
+            delta -= Decimal(row["amount"])
+        if row.get("target_account_id") in included_accounts:
+            delta += Decimal(row["amount"])
+        return delta
     return ZERO
 
 
@@ -29,15 +36,22 @@ def daily_cashflow(
     end: date,
     safety_margin: Decimal = ZERO,
 ) -> dict[str, Any]:
-    balance = sum((Decimal(a["opening_balance"]) for a in accounts), ZERO)
-    balance += sum(
-        (
-            movement(r)
-            for r in transactions
-            if r["status"] == "POSTED" and r["transaction_date"] <= as_of
-        ),
-        ZERO,
-    )
+    known_accounts = {a["id"] for a in accounts if "id" in a}
+    included_accounts: set[Any] | None = known_accounts
+    if len(known_accounts) == len(accounts):
+        balance = account_balance(accounts, transactions, as_of)
+    else:
+        # Pure unit fixtures predating account IDs retain the original semantics.
+        included_accounts = None
+        balance = sum((Decimal(a["opening_balance"]) for a in accounts), ZERO)
+        balance += sum(
+            (
+                movement(r)
+                for r in transactions
+                if r["status"] == "POSTED" and r["transaction_date"] <= as_of
+            ),
+            ZERO,
+        )
     current = balance
     events: dict[date, list[dict[str, Any]]] = {}
 
@@ -58,7 +72,7 @@ def daily_cashflow(
         if row["status"] == "PENDING" or (row["status"] == "POSTED" and day > as_of):
             add(
                 max(day, as_of),
-                movement(row),
+                movement(row, included_accounts),
                 row["description"],
                 row["status"] == "PENDING",
                 day < as_of,
