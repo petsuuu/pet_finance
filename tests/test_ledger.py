@@ -136,3 +136,71 @@ def test_category_uniqueness_and_missing_reference(client: TestClient) -> None:
         == 404
     )
     assert client.get("/api/v1/transactions").json() == []
+
+
+def test_reclassify_posted_expense_between_accounts_without_duplicate(
+    client: TestClient,
+) -> None:
+    essentials = client.post(
+        "/api/v1/accounts",
+        json={
+            "name": "Essenciais",
+            "opening_balance": "1142.06",
+            "opening_balance_date": "2026-11-12",
+        },
+    ).json()["id"]
+    discretionary = client.post(
+        "/api/v1/accounts",
+        json={
+            "name": "Não Essenciais",
+            "opening_balance": "356.16",
+            "opening_balance_date": "2026-11-12",
+        },
+    ).json()["id"]
+    category = client.post(
+        "/api/v1/categories",
+        json={"name": "Cantina Escolar", "expense_class": "FUNDAMENTAL"},
+    ).json()["id"]
+    expense = client.post(
+        "/api/v1/transactions",
+        json={
+            "type": "EXPENSE",
+            "status": "POSTED",
+            "description": "Cantina escolar extra — Luigi e Martin",
+            "amount": "58.50",
+            "transaction_date": "2026-11-12",
+            "account_id": essentials,
+            "category_id": category,
+            "idempotency_key": "canteen-reclassification-test",
+        },
+    ).json()
+    original_id = expense["id"]
+    updated = client.patch(
+        f"/api/v1/transactions/{original_id}", json={"account_id": discretionary}
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["id"] == original_id
+    assert updated.json()["category_id"] == category
+    assert updated.json()["amount"] == "58.50"
+    assert updated.json()["status"] == "POSTED"
+    assert updated.json()["account_id"] == discretionary
+    accounts = {row["name"]: row["current_balance"] for row in client.get("/api/v1/accounts").json()}
+    assert accounts["Essenciais"] == "1142.06"
+    assert accounts["Não Essenciais"] == "297.66"
+    transactions = client.get("/api/v1/transactions").json()
+    assert len(transactions) == 1
+    assert transactions[0]["id"] == original_id
+    assert (
+        client.patch(
+            f"/api/v1/transactions/{original_id}",
+            json={"account_id": "00000000-0000-0000-0000-000000000099"},
+        ).status_code
+        == 404
+    )
+    actions = [
+        row for row in client.get("/api/v1/audit/transactions").json()
+        if row["entity_type"] == "transactions" and row["entity_id"] == original_id
+    ]
+    assert actions[0]["action"] == "UPDATE"
+    assert actions[0]["before_data"]["account_id"] == essentials
+    assert actions[0]["after_data"]["account_id"] == discretionary
