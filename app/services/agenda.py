@@ -180,9 +180,9 @@ def agenda_router(dependency: Any) -> APIRouter:
             raise HTTPException(422, "as_of must belong to requested month")
 
         return expense_agenda(
-            rows("transactions"),
-            rows("recurring_transactions"),
-            rows("installment_plans"),
+            scoped_rows(service, "transactions"),
+            scoped_rows(service, "recurring_transactions"),
+            scoped_rows(service, "installment_plans"),
             scoped_rows(service, "categories"),
             start,
             end,
