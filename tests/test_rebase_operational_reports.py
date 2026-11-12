@@ -91,6 +91,23 @@ def test_rebased_agenda_and_dashboard_ignore_archives_and_pre_cutoff_payments(
     paid = client.patch(f"/api/v1/transactions/{historical['id']}", json={"status": "POSTED"})
     assert paid.status_code == 200, paid.text
 
+    # An active recurrence with a pre-cutoff due date must not recreate the paid
+    # school bill as a virtual overdue expense.
+    essential = next(
+        a["account_id"] for a in client.get("/api/v1/accounts").json() if a["name"] == "Essenciais"
+    )
+    recurrence = client.post(
+        "/api/v1/recurrences",
+        json={
+            "description": "Historical school bill",
+            "account_id": essential,
+            "expected_amount": "100.00",
+            "due_day": 3,
+            "start_date": "2026-11-01",
+        },
+    )
+    assert recurrence.status_code == 201, recurrence.text
+
     params = {"year": 2026, "month": 11, "as_of": "2026-11-12"}
     dashboard = client.get("/api/v1/dashboard/monthly", params=params).json()
     assert dashboard["current_balance"] == "1836.73"
@@ -193,3 +210,58 @@ def test_agenda_does_not_allow_archived_rule_to_suppress_new_forecast(
     assert len(result["items"]) == 1
     assert result["items"][0]["description"] == "Active recurrence"
     assert result["items"][0]["recorded"] is False
+
+
+def test_virtual_recurrences_and_installments_respect_opening_cash_cutoff() -> None:
+    from datetime import date
+    from decimal import Decimal
+
+    from app.services.agenda import expense_agenda
+
+    accounts = [{"id": "checking", "opening_balance_date": date(2026, 11, 12)}]
+    recurring = {
+        "id": "monthly",
+        "account_id": "checking",
+        "description": "Previously settled utility",
+        "type": "EXPENSE",
+        "active": True,
+        "frequency": "MONTHLY",
+        "due_day": 3,
+        "start_date": date(2026, 1, 1),
+        "expected_amount": Decimal("150.00"),
+    }
+    installments = {
+        "id": "installment",
+        "account_id": "checking",
+        "description": "Previously settled installment",
+        "active": True,
+        "total_installments": 2,
+        "first_installment_date": date(2026, 11, 9),
+        "installment_amount": Decimal("55.00"),
+    }
+    november = expense_agenda(
+        [],
+        [recurring],
+        [installments],
+        [],
+        date(2026, 11, 1),
+        date(2026, 11, 30),
+        date(2026, 11, 12),
+        accounts,
+    )
+    assert november["items"] == []
+    assert november["summary"]["overdue"] == {"count": 0, "amount": Decimal("0")}
+    december = expense_agenda(
+        [],
+        [recurring],
+        [installments],
+        [],
+        date(2026, 12, 1),
+        date(2026, 12, 31),
+        date(2026, 12, 12),
+        accounts,
+    )
+    assert {row["description"] for row in december["items"]} == {
+        "Previously settled utility",
+        "Previously settled installment",
+    }
