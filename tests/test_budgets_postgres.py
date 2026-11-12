@@ -72,7 +72,9 @@ def test_no_evidence_and_invalid_budget_category(client: TestClient) -> None:
     body = {"year": 2026, "month": 10, "preview": False}
     assert client.post("/api/v1/budgets/generate", json=body).status_code == 200
     data = client.get("/api/v1/budgets", params={"year": 2026, "month": 10}).json()
-    assert data["items"][0]["status"] == "NEEDS_REVIEW"
+    # No history and no recorded commitment must not create a misleading zero cap.
+    assert data["items"] == []
+    assert data["total_limit"] == "0"
     assert (
         client.post(
             "/api/v1/budgets/set",

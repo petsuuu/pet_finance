@@ -183,6 +183,11 @@ def generate_budgets(service: Ledger, body: BudgetGenerate) -> dict[str, Any]:
                     "preserved": True,
                 }
             )
+        elif item["basis"].get("confidence") == "NO_EVIDENCE" and item["limit_amount"] == ZERO:
+            # Zero with no evidence is not a budget. Historical archived rows may
+            # retain the same year/month/category unique key after financial rebase.
+            # Skipping these placeholders preserves history and permits goal updates.
+            continue
         elif body.preview:
             saved.append({**item, "preserved": False})
         else:
