@@ -29,6 +29,10 @@ class BudgetGenerate(Input):
     preview: bool = True
 
 
+class SavingsTargetSet(Input):
+    savings_target: Annotated[Money, Field(ge=0)]
+
+
 class BudgetSet(Input):
     year: Annotated[int, Field(ge=2000, le=2100)]
     month: Annotated[int, Field(ge=1, le=12)]
@@ -320,6 +324,28 @@ def budgets_router(dependency: Any) -> APIRouter:
         if (body.year, body.month) > (today.year, today.month):
             raise HTTPException(422, "Future months must wait for complete history")
         return generate_budgets(service, body)
+
+    @router.post("/budgets/savings-target")
+    def update_savings_target(
+        body: SavingsTargetSet, service: Ledger = Depends(dependency)
+    ) -> dict[str, Any]:
+        """Store a savings goal without generating budget rows or financial movements."""
+        lock(service)
+        table = service.table("budget_preferences")
+        preference = (
+            service.connection.execute(select(table).where(table.c.user_id == service.user_id))
+            .mappings()
+            .first()
+        )
+        data = {"savings_target": body.savings_target, "enabled": True}
+        if preference:
+            if preference["savings_target"] == body.savings_target and preference["enabled"]:
+                saved = dict(preference)
+            else:
+                saved = service.patch("budget_preferences", preference["id"], data)
+        else:
+            saved = service.create("budget_preferences", data)
+        return {"savings_target": saved["savings_target"], "enabled": saved["enabled"]}
 
     @router.post("/budgets/set")
     def set_month_budget(body: BudgetSet, service: Ledger = Depends(dependency)) -> dict[str, Any]:
