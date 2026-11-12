@@ -38,6 +38,14 @@ def expense_agenda(
     names = {r["id"]: r["name"] for r in categories}
     items: list[dict[str, Any]] = []
 
+    def before_opening_balance(row: dict[str, Any], due: date) -> bool:
+        """Opening balances already cover obligations dated before the cash checkpoint."""
+        if accounts is None:
+            return False
+        account = next((a for a in accounts if a.get("id") == row.get("account_id")), None)
+        cutoff = account.get("opening_balance_date") if account else None
+        return cutoff is not None and due < cutoff
+
     def add(row: dict[str, Any], source: str, due: date, recorded: bool) -> None:
         if names.get(row.get("category_id")) == "Ajuste de Saldo":
             return
@@ -89,6 +97,8 @@ def expense_agenda(
         if not rule["active"] or rule["type"] != "EXPENSE":
             continue
         for due in occurrence_dates(rule, start, end):
+            if before_opening_balance(rule, due):
+                continue
             if (rule["id"], due.year, due.month) not in represented_rules:
                 add({**rule, "recurrence_id": rule["id"]}, "RECURRENCE", due, False)
     for plan in plans:
@@ -96,7 +106,11 @@ def expense_agenda(
             continue
         for number in range(plan.get("first_tracked_number", 1), plan["total_installments"] + 1):
             due = month_date(plan["first_installment_date"], number - 1)
-            if start <= due <= end and (plan["id"], number) not in represented_plans:
+            if (
+                start <= due <= end
+                and not before_opening_balance(plan, due)
+                and (plan["id"], number) not in represented_plans
+            ):
                 add(
                     {
                         **plan,
