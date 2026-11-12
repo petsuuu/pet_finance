@@ -184,7 +184,9 @@ def test_reclassify_posted_expense_between_accounts_without_duplicate(
     assert updated.json()["amount"] == "58.50"
     assert updated.json()["status"] == "POSTED"
     assert updated.json()["account_id"] == discretionary
-    accounts = {row["name"]: row["current_balance"] for row in client.get("/api/v1/accounts").json()}
+    accounts = {
+        row["name"]: row["current_balance"] for row in client.get("/api/v1/accounts").json()
+    }
     assert accounts["Essenciais"] == "1142.06"
     assert accounts["Não Essenciais"] == "297.66"
     transactions = client.get("/api/v1/transactions").json()
