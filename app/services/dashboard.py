@@ -15,7 +15,7 @@ from app.services.occurrences import occurrence_dates
 from app.services.payments import payment_groups
 from app.services.radar import recurring_radar
 from app.services.recovery import recovery_plan
-from app.services.scoping import account_balance
+from app.services.scoping import account_balance, posted_after_opening_balance
 from app.services.scoping import rows as scoped_rows
 from app.services.spending import assess_purchase
 
@@ -35,13 +35,18 @@ def monthly_dashboard(
 
     accounts = rows("accounts")
     transactions = rows("transactions")
+    # Cut-off payments are preserved for audit but already included in opening cash.
+    # Never count them again as monthly income or expense.
+    operational_transactions = [
+        row for row in transactions if posted_after_opening_balance(row, accounts)
+    ]
     categories = {r["id"]: r for r in rows("categories")}
     rules = rows("recurring_transactions")
     balance = account_balance(accounts, transactions, as_of)
     income = expense = pending_expense = pending_income = ZERO
     classes = {"ESSENTIAL": ZERO, "FUNDAMENTAL": ZERO, "SUPERFLUOUS": ZERO, "UNCLASSIFIED": ZERO}
     totals: dict[Any, Decimal] = {}
-    for row in transactions:
+    for row in operational_transactions:
         day = row["transaction_date"]
         amount = row["amount"]
         kind = row["type"]
@@ -150,9 +155,9 @@ def monthly_dashboard(
     }
     result["recovery_plan"] = recovery_plan(flow, budgets, list(categories.values()))
     result["category_comparison"] = category_comparison(
-        list(categories.values()), transactions, as_of
+        list(categories.values()), operational_transactions, as_of
     )
-    groups, radar_transactions = payment_groups(transactions, rows("payment_operations"))
+    groups, radar_transactions = payment_groups(operational_transactions, rows("payment_operations"))
     result["partial_payments"] = [
         g
         for g in groups
@@ -161,7 +166,7 @@ def monthly_dashboard(
             or any(
                 str(r["id"]) in g["payment_ids"]
                 and (r["transaction_date"].year, r["transaction_date"].month) == (year, month)
-                for r in transactions
+                for r in operational_transactions
             )
         )
     ]
