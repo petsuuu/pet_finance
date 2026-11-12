@@ -40,10 +40,7 @@ def rows(service: Ledger, name: str) -> list[dict[str, Any]]:
     return [dict(r) for r in service.connection.execute(query).mappings()]
 
 
-
-def posted_after_opening_balance(
-    row: dict[str, Any], accounts: list[dict[str, Any]]
-) -> bool:
+def posted_after_opening_balance(row: dict[str, Any], accounts: list[dict[str, Any]]) -> bool:
     """Whether a posted movement belongs to the operating period after a rebase.
 
     The opening balance already incorporates older payments. This filter is for
