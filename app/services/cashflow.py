@@ -78,7 +78,7 @@ def daily_cashflow(
                 day < as_of,
             )
     start = as_of.replace(day=1)
-    agenda = expense_agenda(transactions, rules, plans, categories, start, end, as_of)
+    agenda = expense_agenda(transactions, rules, plans, categories, start, end, as_of, accounts)
     for row in agenda["missing_forecasts"]:
         add(max(row["date"], as_of), -row["amount"], row["description"], True, row["date"] < as_of)
     represented = {
