@@ -94,9 +94,7 @@ def test_rebased_agenda_and_dashboard_ignore_archives_and_pre_cutoff_payments(
     # An active recurrence with a pre-cutoff due date must not recreate the paid
     # school bill as a virtual overdue expense.
     essential = next(
-        a["account_id"]
-        for a in client.get("/api/v1/accounts").json()
-        if a["name"] == "Essenciais"
+        a["account_id"] for a in client.get("/api/v1/accounts").json() if a["name"] == "Essenciais"
     )
     recurrence = client.post(
         "/api/v1/recurrences",
@@ -242,15 +240,25 @@ def test_virtual_recurrences_and_installments_respect_opening_cash_cutoff() -> N
         "installment_amount": Decimal("55.00"),
     }
     november = expense_agenda(
-        [], [recurring], [installments], [],
-        date(2026, 11, 1), date(2026, 11, 30), date(2026, 11, 12),
+        [],
+        [recurring],
+        [installments],
+        [],
+        date(2026, 11, 1),
+        date(2026, 11, 30),
+        date(2026, 11, 12),
         accounts,
     )
     assert november["items"] == []
     assert november["summary"]["overdue"] == {"count": 0, "amount": Decimal("0")}
     december = expense_agenda(
-        [], [recurring], [installments], [],
-        date(2026, 12, 1), date(2026, 12, 31), date(2026, 12, 12),
+        [],
+        [recurring],
+        [installments],
+        [],
+        date(2026, 12, 1),
+        date(2026, 12, 31),
+        date(2026, 12, 12),
         accounts,
     )
     assert {row["description"] for row in december["items"]} == {
