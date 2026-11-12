@@ -40,6 +40,26 @@ def rows(service: Ledger, name: str) -> list[dict[str, Any]]:
     return [dict(r) for r in service.connection.execute(query).mappings()]
 
 
+
+def posted_after_opening_balance(
+    row: dict[str, Any], accounts: list[dict[str, Any]]
+) -> bool:
+    """Whether a posted movement belongs to the operating period after a rebase.
+
+    The opening balance already incorporates older payments. This filter is for
+    monthly spending/reporting only; account_balance independently protects cash.
+    Pending obligations remain visible until they are reconciled.
+    """
+    if row.get("status") != "POSTED":
+        return True
+    if row.get("baseline_included"):
+        return False
+    account = next((a for a in accounts if a.get("id") == row.get("account_id")), None)
+    if account is None:
+        return False
+    cutoff = account.get("opening_balance_date")
+    return cutoff is None or row["transaction_date"] >= cutoff
+
 def account_balance(
     accounts: list[dict[str, Any]], transactions: list[dict[str, Any]], as_of: Any
 ) -> Decimal:
