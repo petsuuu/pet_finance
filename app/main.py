@@ -181,9 +181,24 @@ def create_app(settings: Settings) -> FastAPI:
         identity: UUID, body: TransactionPatch, service: Service
     ) -> dict[str, Any]:
         lock(service)
-        if service.get("transactions", identity)["status"] == "CANCELLED":
+        existing = service.get("transactions", identity)
+        if existing["status"] == "CANCELLED":
             raise HTTPException(409, "Cancelled transactions cannot be edited")
         service.reference("categories", body.category_id)
+        if body.account_id is not None:
+            service.reference("accounts", body.account_id)
+            if (
+                existing["recurrence_id"] is not None
+                and body.account_id
+                != service.get("recurring_transactions", existing["recurrence_id"])["account_id"]
+            ):
+                raise HTTPException(422, "Recurrence account mismatch")
+            if (
+                existing["installment_plan_id"] is not None
+                and body.account_id
+                != service.get("installment_plans", existing["installment_plan_id"])["account_id"]
+            ):
+                raise HTTPException(422, "Installment account mismatch")
         return service.patch("transactions", identity, body.model_dump(exclude_unset=True))
 
     @api.post("/api/v1/transactions/{identity}/cancel")
