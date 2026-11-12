@@ -58,9 +58,9 @@ def test_savings_target_is_independent_of_category_budgets_and_balances(
 def test_rebase_archived_zero_evidence_budget_does_not_block_savings_goal(
     client: TestClient,
 ) -> None:
-    old_account = client.post(
+    assert client.post(
         "/api/v1/accounts", json={"name": "Legacy", "opening_balance": "100.00"}
-    ).json()["id"]
+    ).status_code == 201
     category = client.post(
         "/api/v1/categories", json={"name": "Unused category", "expense_class": "ESSENTIAL"}
     ).json()["id"]
