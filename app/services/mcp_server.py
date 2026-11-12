@@ -26,7 +26,7 @@ from app.schemas.plans import (
     RecurrencePatch,
     RecurrenceSetup,
 )
-from app.services.budgets import BudgetGenerate, BudgetSet
+from app.services.budgets import BudgetGenerate, BudgetSet, SavingsTargetSet
 from app.services.finance_rebase import FinancialRebase
 from app.services.oauth import OwnerOAuth
 from app.services.payments import PaymentInput
@@ -118,6 +118,18 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         automática. Não transfere dinheiro nem muda lançamentos.
         """
         result: dict[str, Any] = await rest("POST", "/budgets/set", body.model_dump(mode="json"))
+        return result
+
+    @server.tool(annotations=write, meta=meta)
+    async def set_savings_target(body: SavingsTargetSet) -> dict[str, Any]:
+        """Atualize apenas a meta de reserva financeira.
+
+        Não cria despesas, não gera tetos automáticos, não transfere fundos
+        nem altera saldos de contas. Consulte list_budgets após gravar.
+        """
+        result: dict[str, Any] = await rest(
+            "POST", "/budgets/savings-target", body.model_dump(mode="json")
+        )
         return result
 
     @server.tool(annotations=read, meta=meta)
