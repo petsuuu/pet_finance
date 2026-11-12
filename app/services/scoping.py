@@ -57,6 +57,7 @@ def posted_after_opening_balance(row: dict[str, Any], accounts: list[dict[str, A
     cutoff = account.get("opening_balance_date")
     return cutoff is None or row["transaction_date"] >= cutoff
 
+
 def account_balance(
     accounts: list[dict[str, Any]], transactions: list[dict[str, Any]], as_of: Any
 ) -> Decimal:
