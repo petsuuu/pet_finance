@@ -7,11 +7,11 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
 
 from app.services.ledger import Ledger
 from app.services.occurrences import occurrence_dates
 from app.services.schedules import month_date
+from app.services.scoping import posted_after_opening_balance
 from app.services.scoping import rows as scoped_rows
 
 
@@ -23,8 +23,18 @@ def expense_agenda(
     start: date,
     end: date,
     as_of: date,
+    accounts: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Inputs must already be scoped to the owner. No records are written."""
+    # Defensive guard for pure callers as well as the API's scoped DB queries.
+    transactions = [
+        row
+        for row in transactions
+        if row.get("archived_at") is None
+        and (accounts is None or posted_after_opening_balance(row, accounts))
+    ]
+    rules = [rule for rule in rules if rule.get("archived_at") is None]
+    plans = [plan for plan in plans if plan.get("archived_at") is None]
     names = {r["id"]: r["name"] for r in categories}
     items: list[dict[str, Any]] = []
 
@@ -146,9 +156,9 @@ def agenda_router(dependency: Any) -> APIRouter:
 
         return daily_cashflow(
             rows("accounts"),
-            rows("transactions"),
-            rows("recurring_transactions"),
-            rows("installment_plans"),
+            scoped_rows(service, "transactions"),
+            scoped_rows(service, "recurring_transactions"),
+            scoped_rows(service, "installment_plans"),
             rows("categories"),
             today,
             end,
@@ -169,23 +179,15 @@ def agenda_router(dependency: Any) -> APIRouter:
         if not start <= today <= end:
             raise HTTPException(422, "as_of must belong to requested month")
 
-        def rows(name: str) -> list[dict[str, Any]]:
-            table = service.table(name)
-            return [
-                dict(r)
-                for r in service.connection.execute(
-                    select(table).where(table.c.user_id == service.user_id)
-                ).mappings()
-            ]
-
         return expense_agenda(
             rows("transactions"),
             rows("recurring_transactions"),
             rows("installment_plans"),
-            rows("categories"),
+            scoped_rows(service, "categories"),
             start,
             end,
             today,
+            scoped_rows(service, "accounts"),
         )
 
     return router
