@@ -200,7 +200,8 @@ def test_reclassify_posted_expense_between_accounts_without_duplicate(
         == 404
     )
     actions = [
-        row for row in client.get("/api/v1/audit/transactions").json()
+        row
+        for row in client.get("/api/v1/audit/transactions").json()
         if row["entity_type"] == "transactions" and row["entity_id"] == original_id
     ]
     assert actions[0]["action"] == "UPDATE"
