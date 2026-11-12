@@ -53,3 +53,54 @@ def test_savings_target_is_independent_of_category_budgets_and_balances(
         client.post("/api/v1/budgets/savings-target", json={"savings_target": "-1"}).status_code
         == 422
     )
+
+
+def test_rebase_archived_zero_evidence_budget_does_not_block_savings_goal(
+    client: TestClient,
+) -> None:
+    old_account = client.post(
+        "/api/v1/accounts", json={"name": "Legacy", "opening_balance": "100.00"}
+    ).json()["id"]
+    category = client.post(
+        "/api/v1/categories", json={"name": "Unused category", "expense_class": "ESSENTIAL"}
+    ).json()["id"]
+    old_budget = client.post(
+        "/api/v1/budgets/set",
+        json={"year": 2026, "month": 11, "category_id": category, "limit_amount": "75.00"},
+    )
+    assert old_budget.status_code == 200
+    rebase = client.post(
+        "/api/v1/finance/rebase/commit",
+        json={
+            "batch_key": "regression-archived-budgets-and-goal",
+            "as_of_date": "2026-11-12",
+            "backup_confirmed": True,
+            "expected_active_transactions": 0,
+            "accounts": [{"name": "Checking", "opening_balance": "100.00"}],
+            "transactions": [
+                {
+                    "source_id": "future-salary",
+                    "transaction_date": "2026-11-27",
+                    "description": "Expected salary",
+                    "amount": "1200.00",
+                    "type": "INCOME",
+                    "status": "PENDING",
+                    "account_name": "Checking",
+                }
+            ],
+        },
+    )
+    assert rebase.status_code == 200, rebase.text
+    before = client.get("/api/v1/transactions").json()
+    balances = client.get("/api/v1/accounts").json()
+    applied = client.post(
+        "/api/v1/budgets/generate",
+        json={"year": 2026, "month": 11, "savings_target": "4250.00", "preview": False},
+    )
+    assert applied.status_code == 200, applied.text
+    assert applied.json()["items"] == []
+    report = client.get("/api/v1/budgets", params={"year": 2026, "month": 11}).json()
+    assert report["savings_target"] == "4250.00"
+    assert report["items"] == []
+    assert client.get("/api/v1/transactions").json() == before
+    assert client.get("/api/v1/accounts").json() == balances
