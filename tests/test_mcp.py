@@ -463,7 +463,15 @@ def test_mcp_tools_reuse_ledger_idempotency_and_payment_updates(mcp_client: Test
     )
     assert initialized.status_code == 200
     tools = rpc(mcp_client, token, "tools/list", {}).json()["result"]["tools"]
-    assert len(tools) == 27
+    assert len(tools) >= 32
+    tool_names = {tool["name"] for tool in tools}
+    assert {
+        "create_account",
+        "update_account",
+        "financial_rebase_preview",
+        "financial_rebase_commit",
+        "list_financial_rebases",
+    } <= tool_names
     assert all(t["_meta"]["securitySchemes"][0]["type"] == "oauth2" for t in tools)
     auth = {"Authorization": "Bearer test-token"}
     account = mcp_client.post(

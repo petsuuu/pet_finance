@@ -35,7 +35,9 @@ def plans_router(dependency: Any) -> APIRouter:
 
     def listing(service: Ledger, name: str, limit: int, offset: int) -> list[dict[str, Any]]:
         table = service.table(name)
-        query = select(table).where(table.c.user_id == service.user_id)
+        query = select(table).where(
+            table.c.user_id == service.user_id, table.c.archived_at.is_(None)
+        )
         return [
             dict(row)
             for row in service.connection.execute(

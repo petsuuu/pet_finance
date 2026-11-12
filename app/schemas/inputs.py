@@ -21,11 +21,13 @@ class AccountCreate(Input):
     currency_code: Literal["BRL"] = "BRL"
     opening_balance: Money = Decimal("0")
     opening_balance_date: date | None = None
+    include_in_summary: bool = True
 
 
 class AccountPatch(Input):
     name: Name | None = None
     active: bool | None = None
+    include_in_summary: bool | None = None
 
 
 class CategoryCreate(Input):

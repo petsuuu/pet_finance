@@ -17,7 +17,7 @@ from pydantic import AnyHttpUrl
 from sqlalchemy import Engine
 
 from app.core.config import Settings
-from app.schemas.inputs import TransactionCreate, TransactionPatch
+from app.schemas.inputs import AccountCreate, AccountPatch, TransactionCreate, TransactionPatch
 from app.schemas.merchants import MerchantLearn, MerchantPatch, MerchantSetup
 from app.schemas.plans import (
     InstallmentSetup,
@@ -27,6 +27,7 @@ from app.schemas.plans import (
     RecurrenceSetup,
 )
 from app.services.budgets import BudgetGenerate, BudgetSet
+from app.services.finance_rebase import FinancialRebase
 from app.services.oauth import OwnerOAuth
 from app.services.payments import PaymentInput
 
@@ -41,6 +42,8 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         "Mantenha a mesma idempotency_key ao repetir uma inclusão. Não repita gravações no CloFin. "
         "Ajuste de Saldo não é consumo. Para parcelas importadas, use setup_installment para "
         "vincular lançamentos existentes ao plano sem duplicá-los. "
+        "Pet Finance e a base oficial para consultas e lancamentos; backups externos "
+        "sao somente copia de auditoria. Nunca gravar duplicado em planilhas. "
         "A projeção não inclui novos gastos variáveis.",
         stateless_http=True,
         json_response=True,
@@ -122,6 +125,46 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         """Consulte contas e saldos atuais. Use account_id retornado ao registrar gastos."""
         return {"items": await rest("GET", "/accounts")}
 
+    @server.tool(annotations=write, meta=meta)
+    async def create_account(body: AccountCreate) -> dict[str, Any]:
+        """Crie uma conta no Pet Finance com saldo inicial e opção de excluir do resumo mensal.
+        Confirme a posição real antes de gravar, sem registrar o saldo como receita."""
+        result: dict[str, Any] = await rest("POST", "/accounts", body.model_dump(mode="json"))
+        return result
+
+    @server.tool(annotations=write, meta=meta)
+    async def update_account(identity: UUID, body: AccountPatch) -> dict[str, Any]:
+        """Renomeie ou altere a participação da conta no resumo mensal.
+        Consulte list_accounts para evitar duplicação e conferir account_id."""
+        result: dict[str, Any] = await rest(
+            "PATCH", f"/accounts/{identity}", body.model_dump(mode="json", exclude_unset=True)
+        )
+        return result
+
+    @server.tool(annotations=read, meta=meta)
+    async def financial_rebase_preview(body: FinancialRebase) -> dict[str, Any]:
+        """Prévia obrigatória da migração financeira: contas, saldos de corte,
+        lançamentos e quantidade esperada de registros. Não modifica dados."""
+        result: dict[str, Any] = await rest(
+            "POST", "/finance/rebase/preview", body.model_dump(mode="json")
+        )
+        return result
+
+    @server.tool(annotations=write, meta=meta)
+    async def financial_rebase_commit(body: FinancialRebase) -> dict[str, Any]:
+        """Faça migração atômica e idempotente SOMENTE após backup e prévia validada.
+        Arquiva histórico com consulta preservada; nunca apaga. Contas e saldos de
+        corte não são receitas. Repetições com a mesma batch_key não duplicam."""
+        result: dict[str, Any] = await rest(
+            "POST", "/finance/rebase/commit", body.model_dump(mode="json")
+        )
+        return result
+
+    @server.tool(annotations=read, meta=meta)
+    async def list_financial_rebases() -> dict[str, Any]:
+        """Consulte lotes de migração concluídos para auditoria."""
+        return {"items": await rest("GET", "/finance/rebases")}
+
     @server.tool(annotations=read, meta=meta)
     async def list_categories() -> dict[str, Any]:
         """Consulte categorias. Use IDs existentes e ativos; não invente identificadores."""
@@ -140,11 +183,15 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         status: str | None = None,
         limit: int = 100,
         offset: int = 0,
+        archive_mode: str = "active",
     ) -> dict[str, Any]:
         """Localize lançamentos por período, descrição ou status, com paginação.
 
         Busque a conta pendente antes de marcar um pagamento, evitando criar outro gasto.
+        archive_mode=active (padrao), archived (historico) ou all (auditoria).
         """
+        if archive_mode not in {"active", "archived", "all"}:
+            raise ValueError("archive_mode must be active, archived or all")
         params = {k: str(v) for k, v in locals().items() if v is not None}
         return {"items": await rest("GET", "/transactions", params=params)}
 

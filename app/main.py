@@ -1,7 +1,7 @@
 from collections.abc import Iterator
 from datetime import date
 from secrets import compare_digest
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, Query
@@ -25,6 +25,7 @@ from app.schemas.inputs import (
 from app.services.agenda import agenda_router
 from app.services.budgets import budgets_router, ensure_current_budgets
 from app.services.dashboard import dashboard_router
+from app.services.finance_rebase import finance_rebase_router
 from app.services.imports import imports_router
 from app.services.ledger import Ledger
 from app.services.merchants import merchants_router
@@ -72,7 +73,10 @@ def create_app(settings: Settings) -> FastAPI:
         return [
             dict(row)
             for row in service.connection.execute(
-                text("SELECT * FROM account_balances WHERE user_id = :user ORDER BY name"),
+                text(
+                    "SELECT * FROM account_balances "
+                    "WHERE user_id = :user AND active = true ORDER BY name"
+                ),
                 {"user": settings.user_id},
             ).mappings()
         ]
@@ -130,9 +134,14 @@ def create_app(settings: Settings) -> FastAPI:
         tag: UUID | None = None,
         limit: Annotated[int, Query(ge=1, le=500)] = 100,
         offset: Annotated[int, Query(ge=0)] = 0,
+        archive_mode: Literal["active", "archived", "all"] = "active",
     ) -> list[dict[str, Any]]:
         table = service.table("transactions")
         query = select(table).where(table.c.user_id == settings.user_id)
+        if archive_mode == "active":
+            query = query.where(table.c.archived_at.is_(None))
+        elif archive_mode == "archived":
+            query = query.where(table.c.archived_at.is_not(None))
         for key, value in {
             "account_id": account_id,
             "category_id": category_id,
@@ -201,6 +210,7 @@ def create_app(settings: Settings) -> FastAPI:
         ]
 
     api.include_router(imports_router(ledger))
+    api.include_router(finance_rebase_router(ledger))
     api.include_router(dashboard_router(ledger))
     api.include_router(agenda_router(ledger))
     api.include_router(budgets_router(ledger))

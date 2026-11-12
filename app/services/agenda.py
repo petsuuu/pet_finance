@@ -12,6 +12,7 @@ from sqlalchemy import select
 from app.services.ledger import Ledger
 from app.services.occurrences import occurrence_dates
 from app.services.schedules import month_date
+from app.services.scoping import rows as scoped_rows
 
 
 def expense_agenda(
@@ -141,13 +142,7 @@ def agenda_router(dependency: Any) -> APIRouter:
         end = date(today.year, today.month, monthrange(today.year, today.month)[1])
 
         def rows(name: str) -> list[dict[str, Any]]:
-            table = service.table(name)
-            return [
-                dict(r)
-                for r in service.connection.execute(
-                    select(table).where(table.c.user_id == service.user_id)
-                ).mappings()
-            ]
+            return scoped_rows(service, name)
 
         return daily_cashflow(
             rows("accounts"),

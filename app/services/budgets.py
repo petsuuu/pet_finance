@@ -16,6 +16,7 @@ from app.schemas.inputs import Input, Money
 from app.services.ledger import Ledger
 from app.services.recurrences import lock
 from app.services.schedules import month_date
+from app.services.scoping import rows as scoped_rows
 
 ZERO = Decimal("0")
 
@@ -36,13 +37,7 @@ class BudgetSet(Input):
 
 
 def rows(service: Ledger, name: str) -> list[dict[str, Any]]:
-    table = service.table(name)
-    return [
-        dict(r)
-        for r in service.connection.execute(
-            select(table).where(table.c.user_id == service.user_id)
-        ).mappings()
-    ]
+    return scoped_rows(service, name)
 
 
 def extraordinary(row: dict[str, Any]) -> bool:
