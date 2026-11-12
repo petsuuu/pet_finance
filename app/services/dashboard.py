@@ -81,6 +81,10 @@ def monthly_dashboard(
         due = next(occurrence_dates(rule, start, end), None)
         if due is None:
             continue
+        owner = next((a for a in accounts if a["id"] == rule["account_id"]), None)
+        cutoff = owner.get("opening_balance_date") if owner else None
+        if cutoff is not None and due < cutoff:
+            continue
         if (rule["id"], due.year, due.month) in represented:
             continue
         if rule["type"] == "EXPENSE":
