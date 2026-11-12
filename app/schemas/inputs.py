@@ -60,6 +60,7 @@ class TransactionCreate(Input):
 
 
 class TransactionPatch(Input):
+    account_id: UUID | None = None
     description: Name | None = None
     amount: Annotated[Money, Field(gt=0)] | None = None
     transaction_date: date | None = None
