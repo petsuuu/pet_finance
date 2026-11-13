@@ -32,7 +32,8 @@ def reassign_pending_account(
     rule_id = transaction.get("recurrence_id")
     if rule_id and not apply_to_recurrence:
         raise HTTPException(
-            422, "Linked recurring expenses require apply_to_recurrence=true",
+            422,
+            "Linked recurring expenses require apply_to_recurrence=true",
         )
     if not rule_id and apply_to_recurrence:
         raise HTTPException(422, "Expense has no recurrence to update")
