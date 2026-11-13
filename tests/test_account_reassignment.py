@@ -50,7 +50,8 @@ def test_one_off_preview_and_apply_does_not_post_or_change_balances(client: Test
     assert after["status"] == "PENDING"
     assert after["amount"] == "38.45"
     assert before == client.get("/api/v1/accounts").json()
-    assert client.post(path, json={"target_account_id": dest, "preview": False}).json()["affected_count"] == 0
+    repeated = client.post(path, json={"target_account_id": dest, "preview": False})
+    assert repeated.json()["affected_count"] == 0
 
 
 def test_recurring_reassignment_updates_future_pending_only(client: TestClient) -> None:
