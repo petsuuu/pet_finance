@@ -83,7 +83,7 @@ def reassign_pending_account(
 
     # The request is one database transaction via the API dependency.
     # Only pending entries are changed, hence balances never move.
-    if rule_change:
+    if rule_change and rule_id is not None:
         service.patch("recurring_transactions", rule_id, {"account_id": target_account_id})
     for row in changing:
         service.patch("transactions", row["id"], {"account_id": target_account_id})
