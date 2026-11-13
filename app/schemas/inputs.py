@@ -73,3 +73,9 @@ class TransactionPatch(Input):
             if getattr(self, key) is None:
                 raise ValueError(f"{key} cannot be null")
         return self
+
+
+class TransactionAccountReassign(Input):
+    target_account_id: UUID
+    apply_to_recurrence: bool = False
+    preview: bool = True

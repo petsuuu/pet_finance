@@ -17,7 +17,13 @@ from pydantic import AnyHttpUrl
 from sqlalchemy import Engine
 
 from app.core.config import Settings
-from app.schemas.inputs import AccountCreate, AccountPatch, TransactionCreate, TransactionPatch
+from app.schemas.inputs import (
+    AccountCreate,
+    AccountPatch,
+    TransactionAccountReassign,
+    TransactionCreate,
+    TransactionPatch,
+)
 from app.schemas.merchants import MerchantLearn, MerchantPatch, MerchantSetup
 from app.schemas.plans import (
     InstallmentSetup,
@@ -480,6 +486,25 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         """
         result: dict[str, Any] = await rest(
             "PATCH", f"/transactions/{identity}", body.model_dump(mode="json", exclude_unset=True)
+        )
+        return result
+
+    @server.tool(annotations=write, meta=meta)
+    async def reassign_pending_transaction_account(
+        identity: UUID, body: TransactionAccountReassign
+    ) -> dict[str, Any]:
+        """Corrija a conta/envelope de despesa PENDING sem duplicar nem mudar saldo.
+
+        Consulte conta e transacao antes. Use preview=true para auditar IDs afetados;
+        depois preview=false para aplicar. Para transacao com recorrencia, informe
+        apply_to_recurrence=true: altera a regra e ocorrencias pendentes futuras
+        a partir da data selecionada. Historico pago e cancelado fica intacto.
+        Nunca use para transferencias bancarias ou despesas pagas.
+        """
+        result: dict[str, Any] = await rest(
+            "POST",
+            f"/transactions/{identity}/reassign-account",
+            body.model_dump(mode="json"),
         )
         return result
 
