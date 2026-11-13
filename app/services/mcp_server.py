@@ -197,9 +197,7 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         Consulte list_categories antes de criar para evitar nomes duplicados.
         Não modifica transações, pagamentos ou saldos.
         """
-        result: dict[str, Any] = await rest(
-            "POST", "/categories", body.model_dump(mode="json")
-        )
+        result: dict[str, Any] = await rest("POST", "/categories", body.model_dump(mode="json"))
         return result
 
     @server.tool(annotations=write, meta=meta)
