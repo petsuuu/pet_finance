@@ -122,8 +122,8 @@ def create_app(settings: Settings) -> FastAPI:
                 if parent in visited:
                     raise HTTPException(422, "Category hierarchy cannot contain cycles")
                 visited.add(parent)
-                row = service.reference("categories", parent)
-                parent = row["parent_id"]
+                service.reference("categories", parent)
+                parent = service.get("categories", parent)["parent_id"]
         return service.patch("categories", identity, data)
 
     @api.post("/api/v1/transactions", status_code=201)
