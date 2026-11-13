@@ -114,6 +114,16 @@ def create_app(settings: Settings) -> FastAPI:
         data = body.model_dump(exclude_unset=True)
         if any(data.get(key) is None for key in body.model_fields_set & {"name", "active"}):
             raise HTTPException(422, "Fields cannot be null")
+        if "parent_id" in body.model_fields_set:
+            service.get("categories", identity)
+            parent = body.parent_id
+            visited = {identity}
+            while parent is not None:
+                if parent in visited:
+                    raise HTTPException(422, "Category hierarchy cannot contain cycles")
+                visited.add(parent)
+                service.reference("categories", parent)
+                parent = service.get("categories", parent)["parent_id"]
         return service.patch("categories", identity, data)
 
     @api.post("/api/v1/transactions", status_code=201)
