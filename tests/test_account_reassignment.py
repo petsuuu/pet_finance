@@ -34,7 +34,7 @@ def expense(
         payload["recurrence_id"] = recurrence_id
     response = client.post("/api/v1/transactions", json=payload)
     assert response.status_code == 201, response.text
-    return response.json()["id"]
+    return str(response.json()["id"])
 
 
 def get(client: TestClient, identity: str) -> dict[str, Any]:
