@@ -19,9 +19,9 @@ from app.schemas.inputs import (
     CategoryPatch,
     Kind,
     Status,
+    TransactionAccountReassign,
     TransactionCreate,
     TransactionPatch,
-    TransactionAccountReassign,
 )
 from app.services.account_reassignment import reassign_pending_account
 from app.services.agenda import agenda_router
