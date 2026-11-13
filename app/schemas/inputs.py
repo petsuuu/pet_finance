@@ -38,6 +38,7 @@ class CategoryCreate(Input):
 
 class CategoryPatch(Input):
     name: Name | None = None
+    parent_id: UUID | None = None
     expense_class: Literal["ESSENTIAL", "FUNDAMENTAL", "SUPERFLUOUS"] | None = None
     active: bool | None = None
 
