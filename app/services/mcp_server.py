@@ -17,7 +17,13 @@ from pydantic import AnyHttpUrl
 from sqlalchemy import Engine
 
 from app.core.config import Settings
-from app.schemas.inputs import AccountCreate, AccountPatch, TransactionCreate, TransactionPatch, TransactionAccountReassign
+from app.schemas.inputs import (
+    AccountCreate,
+    AccountPatch,
+    TransactionAccountReassign,
+    TransactionCreate,
+    TransactionPatch,
+)
 from app.schemas.merchants import MerchantLearn, MerchantPatch, MerchantSetup
 from app.schemas.plans import (
     InstallmentSetup,
