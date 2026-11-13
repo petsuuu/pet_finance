@@ -21,7 +21,9 @@ from app.schemas.inputs import (
     Status,
     TransactionCreate,
     TransactionPatch,
+    TransactionAccountReassign,
 )
+from app.services.account_reassignment import reassign_pending_account
 from app.services.agenda import agenda_router
 from app.services.budgets import budgets_router, ensure_current_budgets
 from app.services.dashboard import dashboard_router
@@ -185,6 +187,19 @@ def create_app(settings: Settings) -> FastAPI:
             raise HTTPException(409, "Cancelled transactions cannot be edited")
         service.reference("categories", body.category_id)
         return service.patch("transactions", identity, body.model_dump(exclude_unset=True))
+
+    @api.post("/api/v1/transactions/{identity}/reassign-account")
+    def reassign_transaction_account(
+        identity: UUID, body: TransactionAccountReassign, service: Service
+    ) -> dict[str, Any]:
+        """Preview or atomically move pending envelope allocation; never alter paid amounts."""
+        return reassign_pending_account(
+            service,
+            identity,
+            body.target_account_id,
+            apply_to_recurrence=body.apply_to_recurrence,
+            preview=body.preview,
+        )
 
     @api.post("/api/v1/transactions/{identity}/cancel")
     def cancel_transaction(identity: UUID, service: Service) -> dict[str, Any]:
