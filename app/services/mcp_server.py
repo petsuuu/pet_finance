@@ -20,6 +20,8 @@ from app.core.config import Settings
 from app.schemas.inputs import (
     AccountCreate,
     AccountPatch,
+    CategoryCreate,
+    CategoryPatch,
     TransactionAccountReassign,
     TransactionCreate,
     TransactionPatch,
@@ -187,6 +189,31 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
     async def list_categories() -> dict[str, Any]:
         """Consulte categorias. Use IDs existentes e ativos; não invente identificadores."""
         return {"items": await rest("GET", "/categories")}
+
+    @server.tool(annotations=write, meta=meta)
+    async def create_category(body: CategoryCreate) -> dict[str, Any]:
+        """Crie uma categoria, opcionalmente vinculada a uma categoria pai existente.
+
+        Consulte list_categories antes de criar para evitar nomes duplicados.
+        Não modifica transações, pagamentos ou saldos.
+        """
+        result: dict[str, Any] = await rest(
+            "POST", "/categories", body.model_dump(mode="json")
+        )
+        return result
+
+    @server.tool(annotations=write, meta=meta)
+    async def update_category(identity: UUID, body: CategoryPatch) -> dict[str, Any]:
+        """Renomeie, reclassifique ou reorganize uma categoria existente.
+
+        Consulte list_categories e use IDs existentes. parent_id muda a categoria pai;
+        null move para a raiz. Ciclos são bloqueados. A movimentação preserva IDs,
+        lançamentos, saldos e histórico; valide impacto em orçamentos e dashboards.
+        """
+        result: dict[str, Any] = await rest(
+            "PATCH", f"/categories/{identity}", body.model_dump(mode="json", exclude_unset=True)
+        )
+        return result
 
     @server.tool(annotations=read, meta=meta)
     async def list_tags() -> dict[str, Any]:
