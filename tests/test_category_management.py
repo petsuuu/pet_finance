@@ -25,21 +25,24 @@ def test_category_reparent_preserves_transactions_and_blocks_cycles(client: Test
     ).json()
     balance_before = client.get("/api/v1/accounts").json()[0]["current_balance"]
 
-    moved = client.patch(
-        f"/api/v1/categories/{fuel['id']}", json={"parent_id": car["id"]}
-    )
+    moved = client.patch(f"/api/v1/categories/{fuel['id']}", json={"parent_id": car["id"]})
     assert moved.status_code == 200
     assert moved.json()["parent_id"] == car["id"]
     assert client.get("/api/v1/transactions").json()[0]["id"] == expense["id"]
     assert client.get("/api/v1/accounts").json()[0]["current_balance"] == balance_before
 
-    assert client.patch(
-        f"/api/v1/categories/{car['id']}", json={"parent_id": fuel["id"]}
-    ).status_code == 422
-    assert client.patch(
-        f"/api/v1/categories/{car['id']}", json={"parent_id": car["id"]}
-    ).status_code == 422
-    assert client.patch(
-        f"/api/v1/categories/{fuel['id']}",
-        json={"parent_id": "00000000-0000-0000-0000-000000000099"},
-    ).status_code == 404
+    assert (
+        client.patch(f"/api/v1/categories/{car['id']}", json={"parent_id": fuel["id"]}).status_code
+        == 422
+    )
+    assert (
+        client.patch(f"/api/v1/categories/{car['id']}", json={"parent_id": car["id"]}).status_code
+        == 422
+    )
+    assert (
+        client.patch(
+            f"/api/v1/categories/{fuel['id']}",
+            json={"parent_id": "00000000-0000-0000-0000-000000000099"},
+        ).status_code
+        == 404
+    )
