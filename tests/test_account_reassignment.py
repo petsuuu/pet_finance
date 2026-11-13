@@ -1,12 +1,14 @@
 """Regression tests for auditable, zero-balance-impact envelope corrections."""
 
+from typing import Any, cast
+
 from fastapi.testclient import TestClient
 
 
 def account(client: TestClient, name: str) -> str:
     response = client.post("/api/v1/accounts", json={"name": name})
     assert response.status_code == 201, response.text
-    return response.json()["id"]
+    return str(response.json()["id"])
 
 
 def expense(
@@ -35,10 +37,10 @@ def expense(
     return response.json()["id"]
 
 
-def get(client: TestClient, identity: str) -> dict:
+def get(client: TestClient, identity: str) -> dict[str, Any]:
     response = client.get(f"/api/v1/transactions/{identity}")
     assert response.status_code == 200
-    return response.json()
+    return cast(dict[str, Any], response.json())
 
 
 def test_one_off_preview_and_apply_does_not_post_or_change_balances(client: TestClient) -> None:
