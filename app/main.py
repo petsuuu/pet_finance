@@ -185,8 +185,32 @@ def create_app(settings: Settings) -> FastAPI:
         lock(service)
         if service.get("transactions", identity)["status"] == "CANCELLED":
             raise HTTPException(409, "Cancelled transactions cannot be edited")
+        before = service.get("transactions", identity)
+        if body.account_id is not None and body.account_id != before["account_id"]:
+            if before.get("archived_at") is not None or before.get("baseline_included"):
+                raise HTTPException(409, "Archived or baseline transactions cannot change accounts")
+            if before["type"] != "EXPENSE":
+                raise HTTPException(422, "Account reassignment supports expenses only")
+            service.reference("accounts", body.account_id)
+            source = service.get("accounts", before["account_id"])
+            target = service.get("accounts", body.account_id)
+            # Never turn an opening-balance historical item into a new debit.
+            for account in (source, target):
+                cutoff = account.get("opening_balance_date")
+                if (
+                    cutoff
+                    and min(
+                        before["transaction_date"],
+                        body.transaction_date or before["transaction_date"],
+                    )
+                    < cutoff
+                ):
+                    raise HTTPException(409, "Account change crosses an opening balance cutoff")
         service.reference("categories", body.category_id)
-        return service.patch("transactions", identity, body.model_dump(exclude_unset=True))
+        data = body.model_dump(exclude_unset=True)
+        if all(before.get(key) == value for key, value in data.items()):
+            return before
+        return service.patch("transactions", identity, data)
 
     @api.post("/api/v1/transactions/{identity}/reassign-account")
     def reassign_transaction_account(
