@@ -81,6 +81,12 @@ def plans_router(dependency: Any) -> APIRouter:
         lock(service)
         before = service.get("recurring_transactions", identity)
         data = body.model_dump(exclude_unset=True)
+        if body.account_id is not None:
+            service.reference("accounts", body.account_id)
+            if before.get("archived_at") is not None:
+                raise HTTPException(409, "Archived recurrence cannot change accounts")
+        if all(before.get(key) == value for key, value in data.items()):
+            return before
         merged = {**before, **data}
         if merged["end_date"] and merged["end_date"] < merged["start_date"]:
             raise HTTPException(422, "end_date precedes start_date")

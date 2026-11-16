@@ -340,7 +340,8 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
 
         Use end_date para a continuidade confirmada e active=false para cancelar a regra.
         Preserva IDs, vínculos e lançamentos existentes; não cancela previsões já registradas.
-        Valores alterados valem para gerações futuras, sem mudar pagamentos anteriores.
+        Valores e account_id alterados valem para gerações futuras; ocorrências existentes
+        devem ser editadas explicitamente ou pela operação de reatribuição em lote.
         Não crie outra regra para prorrogar. Não inclua parcelamentos.
         """
         result: dict[str, Any] = await rest(
@@ -482,7 +483,9 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         """Atualize o lançamento identificado pelo usuário. POSTED significa pago/recebido.
 
         Para pagar uma conta existente, consulte o lançamento e atualize status, valor real
-        e transaction_date. Não crie outra transação para o mesmo pagamento.
+        e transaction_date. account_id permite corrigir a conta de uma despesa existente,
+        inclusive junto com o pagamento, atomicamente. Consulte os saldos antes e depois.
+        Repetir o mesmo PATCH é inócuo; não crie outra transação para o mesmo pagamento.
         """
         result: dict[str, Any] = await rest(
             "PATCH", f"/transactions/{identity}", body.model_dump(mode="json", exclude_unset=True)

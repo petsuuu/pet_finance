@@ -32,6 +32,7 @@ class RecurrenceCreate(Input):
 
 
 class RecurrencePatch(Input):
+    account_id: UUID | None = None
     description: Name | None = None
     expected_amount: Annotated[Money, Field(gt=0)] | None = None
     tolerance_amount: Annotated[Money, Field(ge=0)] | None = None
