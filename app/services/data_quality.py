@@ -19,6 +19,7 @@ def data_quality_dashboard(service: Ledger, *, limit: int = 100) -> dict[str, An
     similar_count = summary.get("similar_duplicate_pairs", 0)
     reference_count = summary.get("pending_reference_findings", 0)
     repeated_pending_count = summary.get("pending_recurrence_duplicate_groups", 0)
+    overlap_count = summary.get("settled_pending_overlap_groups", 0)
 
     review_count = (
         duplicate_count
@@ -27,6 +28,7 @@ def data_quality_dashboard(service: Ledger, *, limit: int = 100) -> dict[str, An
         + similar_count
         + reference_count
         + repeated_pending_count
+        + overlap_count
     )
     status = "CRITICAL" if balance_count else ("REVIEW" if review_count else "OK")
     sections = [
@@ -88,6 +90,15 @@ def data_quality_dashboard(service: Ledger, *, limit: int = 100) -> dict[str, An
             "truncated": audit["truncated"].get("pending_recurrence_duplicates", False),
         },
         {
+            "id": "settled_pending_overlaps",
+            "title": "Cobranças já pagas com pendência",
+            "severity": "REVIEW" if overlap_count else "OK",
+            "count": overlap_count,
+            "description": "Mesma recorrência possui lançamentos pagos e pendentes no mesmo mês.",
+            "items": audit.get("settled_pending_overlaps", []),
+            "truncated": audit["truncated"].get("settled_pending_overlaps", False),
+        },
+        {
             "id": "similar_duplicates",
             "title": "Descrições semelhantes",
             "severity": "REVIEW" if similar_count else "OK",
@@ -109,6 +120,7 @@ def data_quality_dashboard(service: Ledger, *, limit: int = 100) -> dict[str, An
             "similar_duplicate_pairs": similar_count,
             "pending_reference_findings": reference_count,
             "pending_recurrence_duplicate_groups": repeated_pending_count,
+            "settled_pending_overlap_groups": overlap_count,
             "total_findings": balance_count + review_count,
         },
         "sections": sections,
