@@ -108,8 +108,7 @@ def test_planning_never_credits_expected_income_as_spendable() -> None:
     assert result["forecast_after_expected_income"] == Decimal("960")
     assert result["forecast_shortfall"] == Decimal("0")
     assert result == planning_summary(
-        Decimal("100"), Decimal("80"), Decimal("30"), Decimal("20"),
-        Decimal("10"), Decimal("1000")
+        Decimal("100"), Decimal("80"), Decimal("30"), Decimal("20"), Decimal("10"), Decimal("1000")
     )
 
 
