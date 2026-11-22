@@ -94,3 +94,14 @@ def test_acceptance_missing_environment_never_calls_network() -> None:
         "status": "BLOCKED",
         "reason": "MISSING_ACCEPTANCE_CONFIGURATION",
     }
+
+
+def test_acceptance_blocks_main_live_commit_drift() -> None:
+    source = FakeReadOnlyAdapter()
+    source.latest_deployment = lambda: {  # type: ignore[method-assign]
+        "status": "live",
+        "commit": {"id": "b" * 40},
+    }
+    report = acceptance_report(source, expected_service="srv-test")  # type: ignore[arg-type]
+    assert report["status"] == "BLOCKED"
+    assert report["main_matches_live"] is False
