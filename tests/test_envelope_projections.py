@@ -88,8 +88,7 @@ def test_envelopes_do_not_count_cutoff_history_or_recreate_cancelled_rule() -> N
         item(account, "35", "EXPENSE", "CANCELLED", 20, recurrence_id=rule_id),
     ]
     result = envelope_projections(
-        accounts, rows, [rule], date(2026, 11, 1), date(2026, 11, 30),
-        date(2026, 11, 22)
+        accounts, rows, [rule], date(2026, 11, 1), date(2026, 11, 30), date(2026, 11, 22)
     )
     assert result["items"][0]["recorded_balance"] == Decimal("200")
     assert result["items"][0]["unrecorded_recurring_expenses"] == Decimal("0")
@@ -115,8 +114,7 @@ def test_partial_receipt_does_not_invent_the_unrecorded_difference() -> None:
         item(account, "300", "INCOME", "PENDING", 25, recurrence_id=rule_id),
     ]
     result = income_reconciliation(
-        rows, [rule], [{"id": account}], date(2026, 11, 1),
-        date(2026, 11, 30), date(2026, 11, 22)
+        rows, [rule], [{"id": account}], date(2026, 11, 1), date(2026, 11, 30), date(2026, 11, 22)
     )
     check = result["recurring_income_checks"][0]
     assert check["state"] == "PARTIALLY_RECEIVED"
@@ -128,9 +126,7 @@ def test_partial_receipt_does_not_invent_the_unrecorded_difference() -> None:
 
 
 def test_monthly_dashboard_envelope_projection_is_read_only(client: TestClient) -> None:
-    account = client.post(
-        "/api/v1/accounts", json={"name": "Essenciais", "opening_balance": "100"}
-    )
+    account = client.post("/api/v1/accounts", json={"name": "Essenciais", "opening_balance": "100"})
     assert account.status_code == 201, account.text
     account_id = account.json()["id"]
     transaction = client.post(
