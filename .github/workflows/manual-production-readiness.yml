@@ -1,0 +1,43 @@
+name: Solo manual release readiness (no deploy)
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: "Exact 40-character main commit SHA to verify"
+        required: true
+        type: string
+      confirmation:
+        description: "Type VERIFY READINESS followed by a space and the SHA"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-readiness
+  cancel-in-progress: false
+
+jobs:
+  solo-readiness:
+    name: Verify explicit owner attestation, not deploy approval
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Confirm trusted dispatch context and exact checked-out main commit
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: python -m app.services.github_release_gate
+      - name: Explain remaining release gates
+        run: |
+          echo "Only solo readiness attested. This is NOT independent review."
+          echo "This workflow has no Render, MCP, GitHub write, or deployment tokens."
+          echo "Before any separate manual release, verify HTTP/MCP read-only acceptance,"
+          echo "fresh baseline, exact commit, explicit deploy consent, and post-deploy MATCH."
