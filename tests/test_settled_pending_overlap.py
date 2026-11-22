@@ -45,12 +45,10 @@ def test_overlap_requires_posted_and_pending_in_same_recurrence_month() -> None:
 
 def test_paid_only_or_pending_only_is_not_a_conflict() -> None:
     rule = uuid4()
-    assert settled_pending_recurrence_overlaps(
-        [movement(rule, "POSTED", date(2026, 11, 22))]
-    ) == []
-    assert settled_pending_recurrence_overlaps(
-        [movement(rule, "PENDING", date(2026, 11, 22))]
-    ) == []
+    assert settled_pending_recurrence_overlaps([movement(rule, "POSTED", date(2026, 11, 22))]) == []
+    assert (
+        settled_pending_recurrence_overlaps([movement(rule, "PENDING", date(2026, 11, 22))]) == []
+    )
 
 
 def test_dashboard_paid_pending_overlap_does_not_modify_ledger(client: TestClient) -> None:
@@ -99,9 +97,7 @@ def test_dashboard_paid_pending_overlap_does_not_modify_ledger(client: TestClien
     assert data["status"] == "REVIEW"
     assert data["summary"]["settled_pending_overlap_groups"] == 1
     assert data["summary"]["balance_mismatches"] == 0
-    section = next(
-        item for item in data["sections"] if item["id"] == "settled_pending_overlaps"
-    )
+    section = next(item for item in data["sections"] if item["id"] == "settled_pending_overlaps")
     assert section["count"] == 1
     assert client.get("/api/v1/accounts").json() == accounts_before
     assert client.get("/api/v1/transactions").json() == transactions_before
