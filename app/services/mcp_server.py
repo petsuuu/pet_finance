@@ -247,6 +247,28 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         return {"items": await rest("GET", "/transactions", params=params)}
 
     @server.tool(annotations=read, meta=meta)
+    async def financial_audit_snapshot() -> dict[str, Any]:
+        """Capture todas as contas, saldos, lançamentos e histórico em uma transação.
+
+        Retorna contagens e assinaturas SHA-256, sem transferir milhares de
+        lançamentos. Guarde o resultado antes de um deploy autorizado.
+        """
+        result: dict[str, Any] = await rest("GET", "/audit/financial-snapshot")
+        return result
+
+    @server.tool(annotations=read, meta=meta)
+    async def compare_financial_audit(baseline: dict[str, Any]) -> dict[str, Any]:
+        """Compare um snapshot confiável pré-deploy com os dados atuais.
+
+        Qualquer divergência exige revisão, inclusive mudanças legítimas
+        durante o deploy. A comparação nunca altera dados financeiros.
+        """
+        result: dict[str, Any] = await rest(
+            "POST", "/audit/financial-snapshot/compare", {"baseline": baseline}
+        )
+        return result
+
+    @server.tool(annotations=read, meta=meta)
     async def data_quality_dashboard(limit: int = 100) -> dict[str, Any]:
         """Consulte alertas de integridade financeira, sem alterar nenhum registro.
 
