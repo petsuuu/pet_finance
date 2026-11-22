@@ -148,14 +148,10 @@ def test_follow_up_distinguishes_partial_full_and_unknown_salary() -> None:
     assert partial["follow_up"]["action"] == "RECONCILE_PARTIAL_SALARY"
     assert partial["review_gate"] == "REVIEW_PARTIAL_RECEIPT"
 
-    partial_overdue = post_salary_envelope_alerts(
-        *reports("200", "700"), as_of=date(2026, 11, 27)
-    )
+    partial_overdue = post_salary_envelope_alerts(*reports("200", "700"), as_of=date(2026, 11, 27))
     assert partial_overdue["follow_up"]["action"] == "VERIFY_OVERDUE_SALARY"
 
-    fully_recorded = post_salary_envelope_alerts(
-        *reports("1000", "0"), as_of=date(2026, 11, 27)
-    )
+    fully_recorded = post_salary_envelope_alerts(*reports("1000", "0"), as_of=date(2026, 11, 27))
     assert fully_recorded["follow_up"]["action"] == "REVIEW_ENVELOPE_SUGGESTIONS"
     assert fully_recorded["salary"]["bank_deposit_verified"] is False
     assert fully_recorded["follow_up"]["read_only"] is True
