@@ -4,7 +4,23 @@ O pacote de aplicação `pet-finance` define a versão oficial do conector MCP e
 `pyproject.toml`. O servidor publica a mesma versão no handshake MCP e na
 ferramenta autenticada e somente leitura `plugin_info`.
 
-## [0.2.0] - Em revisão (PR #49, 22/11/2026)
+## [0.2.1] - Em revisão (PR #50, 22/11/2026)
+
+### Corrigido
+- Removido o parâmetro interno `rest` que vazava para seis consultas GET do MCP
+  por causa de `locals()` em funções internas.
+- Os parâmetros de cada ferramenta passam a ser declarados explicitamente:
+  list_transactions, monthly_dashboard, monthly_agenda, daily_cashflow,
+  recovery_plan e check_purchase.
+- Testes verificam os parâmetros efetivamente enviados e preservam o uso
+  exclusivamente de leitura e os contratos das ferramentas existentes.
+
+### Compatibilidade e segurança
+- PATCH SemVer, sem novos parâmetros públicos, mudança de SDK, migração,
+  transferências ou alterações financeiras.
+- A versão `0.2.1` é candidata nesta PR, não representa um deploy ou tag.
+
+## [0.2.0] - Publicada (PR #49, 22/11/2026)
 
 ### Adicionado
 - Versionamento explícito do conector MCP por SemVer.
@@ -19,10 +35,10 @@ ferramenta autenticada e somente leitura `plugin_info`.
 - Novos metadados e ferramenta aditiva; nenhuma assinatura de ferramenta existente
   ou endpoint financeiro foi alterado.
 - OAuth, API v1 e dependência `mcp==1.30.0` preservados.
-- Esta entrada documenta um **candidato a lançamento**, não comprova deploy
-  ou criação de tag Git.
-- Merge, publicação manual no Render e eventual tag `v0.2.0` dependem das
-  respectivas autorizações e da auditoria financeira.
+- Publicada no Render com pacote `pet-finance==0.2.0`; não implica
+  criação de tag Git.
+- Merge e deploy foram autorizados separadamente, com auditoria financeira
+  pré/pós-publicação sem divergências. Tag Git não confirmada.
 
 ## [0.1.0] - Versão base anterior
 

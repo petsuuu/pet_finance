@@ -1,7 +1,7 @@
 ## Versionamento do plugin Pet Finance MCP
 
 A versão do conector é a versão do pacote `pet-finance` definida em
-`pyproject.toml` (atualmente candidata: **0.2.0** na PR #49). Ela pode ser
+`pyproject.toml` (atualmente candidata: **0.2.1** na PR #50; a versão 0.2.0 foi publicada). Ela pode ser
 consultada por OAuth via a ferramenta somente leitura `plugin_info`, e é
 anunciada em `serverInfo.version` no handshake MCP.
 
