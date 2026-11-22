@@ -18,9 +18,8 @@ def data_quality_dashboard(service: Ledger, *, limit: int = 100) -> dict[str, An
     classification_count = summary.get("classification_findings", 0)
     similar_count = summary.get("similar_duplicate_pairs", 0)
 
-    status = (
-        "CRITICAL" if balance_count else ("REVIEW" if duplicate_count or recurrence_count or classification_count or similar_count else "OK")
-    )
+    review_count = duplicate_count + recurrence_count + classification_count + similar_count
+    status = "CRITICAL" if balance_count else ("REVIEW" if review_count else "OK")
     sections = [
         {
             "id": "balances",
@@ -55,7 +54,9 @@ def data_quality_dashboard(service: Ledger, *, limit: int = 100) -> dict[str, An
             "title": "Classificação de despesas",
             "severity": "REVIEW" if classification_count else "OK",
             "count": classification_count,
-            "description": "Categorias ausentes, inativas ou diferentes do padrão do estabelecimento.",
+            "description": (
+                "Categorias ausentes, inativas ou diferentes do padrão do estabelecimento."
+            ),
             "items": audit.get("classification_findings", []),
             "truncated": audit["truncated"].get("classification_findings", False),
         },
@@ -79,7 +80,7 @@ def data_quality_dashboard(service: Ledger, *, limit: int = 100) -> dict[str, An
             "recurrence_account_mismatches": recurrence_count,
             "classification_findings": classification_count,
             "similar_duplicate_pairs": similar_count,
-            "total_findings": balance_count + duplicate_count + recurrence_count + classification_count + similar_count,
+            "total_findings": balance_count + review_count,
         },
         "sections": sections,
         "disclaimer": (
