@@ -138,9 +138,7 @@ def test_mcp_plugin_version_is_semver_traceable_and_read_only(
     before_transactions = mcp_client.get("/api/v1/transactions", headers=headers).json()
     before_audit = mcp_client.get("/api/v1/audit/transactions", headers=headers).json()
 
-    response = rpc(
-        mcp_client, token, "tools/call", {"name": "plugin_info", "arguments": {}}
-    )
+    response = rpc(mcp_client, token, "tools/call", {"name": "plugin_info", "arguments": {}})
     assert response.status_code == 200, response.text
     result = response.json()["result"]
     assert not result.get("isError"), result
