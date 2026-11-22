@@ -112,11 +112,8 @@ def _salary_receipt_reconciliation(salaries: list[dict[str, Any]]) -> dict[str, 
         "not_recorded_after_pending_total": sum(
             (row["not_recorded_after_pending"] for row in items), ZERO
         ),
-        "posted_above_expected_total": sum(
-            (row["posted_above_expected"] for row in items), ZERO
-        ),
-        "all_fully_posted": bool(items)
-        and all(row["unreceived"] == ZERO for row in items),
+        "posted_above_expected_total": sum((row["posted_above_expected"] for row in items), ZERO),
+        "all_fully_posted": bool(items) and all(row["unreceived"] == ZERO for row in items),
         "basis": (
             "Amounts are reconciled per salary recurrence without offsetting "
             "missing records against excess posted on another rule. POSTED is "
@@ -217,9 +214,7 @@ def post_salary_envelope_alerts(
             "expected": expected,
             "recorded_received": received,
             "recorded_pending": pending,
-            "not_recorded_against_expected": reconciliation[
-                "not_recorded_after_pending_total"
-            ],
+            "not_recorded_against_expected": reconciliation["not_recorded_after_pending_total"],
             "unreceived_against_expected": reconciliation["unreceived_total"],
             "recurrence_breakdown": reconciliation,
             "bank_deposit_verified": False,
