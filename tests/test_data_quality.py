@@ -43,7 +43,9 @@ def test_clean_dashboard_has_no_warnings(client: TestClient) -> None:
     assert data["summary"]["accounts_checked"] == 1
     assert data["summary"]["total_findings"] == 0
     assert [section["id"] for section in data["sections"]] == [
-        "balances", "potential_duplicates", "recurrence_accounts"
+        "balances",
+        "potential_duplicates",
+        "recurrence_accounts",
     ]
     assert all(section["severity"] == "OK" for section in data["sections"])
 
@@ -70,9 +72,7 @@ def test_duplicate_dashboard_is_review_only_and_does_not_mutate(client: TestClie
 def test_dashboard_has_authentication_and_limit_validation(client: TestClient) -> None:
     assert client.get("/api/v1/dashboard/data-quality", params={"limit": 0}).status_code == 422
     assert client.get("/api/v1/dashboard/data-quality", params={"limit": 501}).status_code == 422
-    unauthenticated = client.get(
-        "/api/v1/dashboard/data-quality", headers={"Authorization": ""}
-    )
+    unauthenticated = client.get("/api/v1/dashboard/data-quality", headers={"Authorization": ""})
     assert unauthenticated.status_code == 401
 
 
@@ -84,9 +84,7 @@ def test_critical_balance_warning_takes_priority() -> None:
             "potential_duplicate_groups": 1,
             "recurrence_account_mismatches": 0,
         },
-        "balances": [
-            {"account_name": "Carteira", "matches": False, "difference": "1.00"}
-        ],
+        "balances": [{"account_name": "Carteira", "matches": False, "difference": "1.00"}],
         "potential_duplicates": [{"requires_review": True}],
         "recurrence_account_mismatches": [],
         "truncated": {"potential_duplicates": False, "recurrence_account_mismatches": False},
