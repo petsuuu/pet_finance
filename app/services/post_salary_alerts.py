@@ -1,6 +1,7 @@
 """Read-only salary receipt readiness and post-salary envelope shortage alerts."""
 
 import unicodedata
+from datetime import date
 from decimal import Decimal
 from typing import Any
 
@@ -21,6 +22,7 @@ def post_salary_envelope_alerts(
     income_report: dict[str, Any],
     envelope_report: dict[str, Any],
     allocation_report: dict[str, Any],
+    as_of: date | None = None,
 ) -> dict[str, Any]:
     """Report shortages without claiming a bank deposit or scheduling transfers.
 
@@ -35,6 +37,21 @@ def post_salary_envelope_alerts(
     received = sum((Decimal(row["received_amount"]) for row in salaries), ZERO)
     expected = sum((Decimal(row["expected_amount"]) for row in salaries), ZERO)
     pending = sum((Decimal(row["pending_amount"]) for row in salaries), ZERO)
+
+    outstanding_due_dates: list[date] = []
+    for row in salaries:
+        if Decimal(row["received_amount"]) >= Decimal(row["expected_amount"]):
+            continue
+        raw_due = row.get("due_date")
+        if raw_due is None:
+            continue
+        outstanding_due_dates.append(
+            raw_due if isinstance(raw_due, date) else date.fromisoformat(str(raw_due))
+        )
+    earliest_due = min(outstanding_due_dates, default=None)
+    days_until_due = (
+        (earliest_due - as_of).days if earliest_due is not None and as_of is not None else None
+    )
 
     if not salaries:
         salary_state = "SALARY_RULE_NOT_IDENTIFIED"
@@ -90,6 +107,10 @@ def post_salary_envelope_alerts(
             "recorded_pending": pending,
             "not_recorded_against_expected": max(ZERO, expected - received - pending),
             "bank_deposit_verified": False,
+            "earliest_outstanding_due_date": earliest_due,
+            "days_until_due": days_until_due,
+            "receipt_overdue": days_until_due is not None and days_until_due < 0,
+            "overdue_days": max(0, -days_until_due) if days_until_due is not None else None,
         },
         "alerts": alerts,
         "shortfall_alert_count": len(alerts),
@@ -113,7 +134,8 @@ def post_salary_envelope_alerts(
         "basis": (
             "Read-only planning alerts. Salary evidence requires eligible posted "
             "income linked to a salary-named recurrence; it does not verify a bank "
-            "deposit. Recorded-cash distribution remains capped by the global "
+            "deposit. A scheduled salary due date is not proof of receipt. "
+            "Recorded-cash distribution remains capped by the global "
             "safety and savings plan; conditional income never becomes available "
             "cash. No transfers, payments, balances or transactions are changed."
         ),
