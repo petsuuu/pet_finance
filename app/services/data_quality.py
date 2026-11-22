@@ -16,8 +16,8 @@ def data_quality_dashboard(service: Ledger, *, limit: int = 100) -> dict[str, An
     duplicate_count = summary["potential_duplicate_groups"]
     recurrence_count = summary["recurrence_account_mismatches"]
 
-    status = "CRITICAL" if balance_count else (
-        "REVIEW" if duplicate_count or recurrence_count else "OK"
+    status = (
+        "CRITICAL" if balance_count else ("REVIEW" if duplicate_count or recurrence_count else "OK")
     )
     sections = [
         {
