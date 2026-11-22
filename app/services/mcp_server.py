@@ -214,6 +214,23 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         return {"items": await rest("GET", "/transactions", params=params)}
 
     @server.tool(annotations=read, meta=meta)
+    async def data_quality_dashboard(limit: int = 100) -> dict[str, Any]:
+        """Consulte alertas de integridade financeira, sem alterar nenhum registro.
+
+        Retorna estado geral OK, REVIEW ou CRITICAL, diferenças de saldo por conta,
+        grupos de despesas potencialmente duplicadas e divergências entre regras e
+        ocorrências PENDING de recorrência. Alertas são diagnósticos, não confirmação
+        de fraude ou erro; não corrija automaticamente. O total de achados pode ser
+        maior que a amostra retornada. Use limit entre 1 e 500.
+        """
+        if not 1 <= limit <= 500:
+            raise ValueError("limit must be between 1 and 500")
+        result: dict[str, Any] = await rest(
+            "GET", "/dashboard/data-quality", params={"limit": limit}
+        )
+        return result
+
+    @server.tool(annotations=read, meta=meta)
     async def monthly_dashboard(
         year: int,
         month: int,
