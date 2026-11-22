@@ -23,7 +23,7 @@ def good_results() -> dict[str, tuple[int, dict, dict]]:
         "denied": (
             401,
             {},
-            {"www-authenticate": 'Bearer resource_metadata="/.well-known/oauth-protected-resource/mcp"'},
+            {"www-authenticate": "Bearer"},
         ),
     }
 
