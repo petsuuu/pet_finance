@@ -49,6 +49,7 @@ def test_clean_dashboard_has_no_warnings(client: TestClient) -> None:
         "classification",
         "pending_references",
         "repeated_pending_recurrences",
+        "settled_pending_overlaps",
         "similar_duplicates",
     ]
     assert all(section["severity"] == "OK" for section in data["sections"])
