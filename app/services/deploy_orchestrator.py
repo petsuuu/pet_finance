@@ -83,11 +83,7 @@ def _private_directory(path: Path, *, create: bool) -> Iterator[int]:
     fd = os.open(path, flags)
     try:
         meta = os.fstat(fd)
-        if (
-            not stat.S_ISDIR(meta.st_mode)
-            or meta.st_uid != os.getuid()
-            or meta.st_mode & 0o077
-        ):
+        if not stat.S_ISDIR(meta.st_mode) or meta.st_uid != os.getuid() or meta.st_mode & 0o077:
             raise ValueError("INSECURE_EVIDENCE_DIRECTORY")
         yield fd
     finally:
@@ -119,11 +115,7 @@ def _read_private(path: Path) -> bytes:
         fd = os.open(path.name, flags, dir_fd=directory_fd)
         with os.fdopen(fd, "rb") as stream:
             meta = os.fstat(stream.fileno())
-            if (
-                not stat.S_ISREG(meta.st_mode)
-                or meta.st_uid != os.getuid()
-                or meta.st_mode & 0o077
-            ):
+            if not stat.S_ISREG(meta.st_mode) or meta.st_uid != os.getuid() or meta.st_mode & 0o077:
                 raise ValueError("INSECURE_EVIDENCE_FILE")
             return stream.read()
 
@@ -177,9 +169,7 @@ def prepare_predeploy(
         sealed = Fernet(encryption_key).encrypt(
             json.dumps(record, sort_keys=True, separators=(",", ":")).encode()
         )
-        path = _save_private(
-            vault_dir, f"baseline-{commit}-{execution_id}.sealed", sealed
-        )
+        path = _save_private(vault_dir, f"baseline-{commit}-{execution_id}.sealed", sealed)
         return {
             **report,
             "evidence_file": str(path),
@@ -226,9 +216,8 @@ def verify_postdeploy(
         ):
             return _blocked("EVIDENCE_BINDING_MISMATCH", "postdeploy")
         baseline = record["baseline"]
-        if (
-            record.get("captured_at") != baseline.get("captured_at")
-            or not _fresh(record.get("captured_at"), now=current, max_age=MAX_AUDIT_WINDOW)
+        if record.get("captured_at") != baseline.get("captured_at") or not _fresh(
+            record.get("captured_at"), now=current, max_age=MAX_AUDIT_WINDOW
         ):
             return _blocked("EXPIRED_BASELINE", "postdeploy")
         service = source.render_service()
@@ -245,9 +234,7 @@ def verify_postdeploy(
             baseline=baseline,
             comparison=comparison,
         )
-        if not _fresh(
-            comparison.get("after_captured_at"), now=current, max_age=MAX_PREDEPLOY_AGE
-        ):
+        if not _fresh(comparison.get("after_captured_at"), now=current, max_age=MAX_PREDEPLOY_AGE):
             return _blocked("STALE_POSTDEPLOY_EVIDENCE", "postdeploy")
         return {
             **report,
