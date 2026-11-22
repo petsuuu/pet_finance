@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from app.services.audit_snapshots import _digest, SECTION_NAMES
+from app.services.audit_snapshots import SECTION_NAMES, _digest
 from app.services.deploy_safety import check_postdeploy, check_predeploy
 
 COMMIT = "a" * 40
