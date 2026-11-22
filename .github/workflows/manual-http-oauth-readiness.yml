@@ -1,0 +1,38 @@
+name: Manual public HTTP OAuth readiness (no deploy)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-http-readiness
+  cancel-in-progress: false
+
+jobs:
+  public-http-readiness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Confirm manual run on main only
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$GITHUB_REF" = "refs/heads/main"
+          test "$GITHUB_REPOSITORY" = "petsuuu/pet_finance"
+      - name: Probe public health, OAuth metadata and MCP token rejection
+        run: python -m app.services.http_readiness
+      - name: Explain limits
+        if: always()
+        run: |
+          echo "No credentials, financial writes, merge or deploy were performed."
+          echo "This cannot establish authenticated MCP readiness or authorize deployment."
