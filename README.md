@@ -1,3 +1,31 @@
+## Auditoria Inteligente v2 (snapshots financeiros)
+
+Antes de qualquer deploy manual autorizado, capture o snapshot usando a ferramenta
+MCP `financial_audit_snapshot` ou `GET /api/v1/audit/financial-snapshot`.
+Guarde **o objeto de resposta completo** de fonte autenticada. Após o deploy,
+chame `compare_financial_audit(baseline=...)` ou
+`POST /api/v1/audit/financial-snapshot/compare` com
+`{"baseline": <objeto anterior>}`. O comparador captura os dados atuais e
+retorna `MATCH` ou `REVIEW_REQUIRED` com contagens/hashes SHA-256 por seção
+e saldos alterados por conta. Nunca execute pagamentos, transferências ou
+correções a partir de resultados sem revisão e autorização.
+
+**Consistência:** cada captura executa todas as leituras dentro de uma
+transação PostgreSQL `REPEATABLE READ READ ONLY`, incluindo contas ativas e
+inativas, saldos de todas as contas, lançamentos ativos/arquivados e o histórico
+completo de auditoria. São calculados hashes sobre linhas completas com
+ordenação determinística. O conjunto `account_balances` inclui contas
+excluídas do resumo. O retorno não carrega listas de milhares de transações.
+
+**Escopo e limitações:** ambas as rotas exigem autenticação e não armazenam
+snapshots. O comparador só pode confrontar o snapshot fornecido com o estado
+atual; o operador deve preservar a origem confiável do snapshot anterior.
+Qualquer mudança entre capturas, inclusive movimentação legítima de outro
+usuário, exige revisão. Hash igual não prova conciliação bancária, nem
+dispensa validar sucesso do deploy, versão MCP e o painel de qualidade.
+A PR #51 prepara a versão `0.3.0` para publicação futura **em lote**;
+merge e deploy exigem autorizações separadas e o Auto-Deploy deve ficar OFF.
+
 ## Versionamento do plugin Pet Finance MCP
 
 A versão do conector é a versão do pacote `pet-finance` definida em
