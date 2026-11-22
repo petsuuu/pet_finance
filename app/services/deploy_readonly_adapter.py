@@ -18,13 +18,28 @@ class ReadOnlyHttpAdapter:
         service_id: str,
         render_token: str,
         mcp_url: str,
+        trusted_mcp_origin: str,
         mcp_oauth_token: str,
         github_token: str | None = None,
         client: httpx.Client | None = None,
     ) -> None:
         parsed = urlsplit(mcp_url)
+        trusted = urlsplit(trusted_mcp_origin)
+        same_origin = (
+            parsed.scheme == trusted.scheme == "https"
+            and parsed.hostname == trusted.hostname
+            and parsed.port == trusted.port
+            and bool(parsed.hostname)
+            and trusted.path in ("", "/")
+            and not trusted.username
+            and not trusted.password
+            and not trusted.query
+            and not trusted.fragment
+            and parsed.port in (None, 443)
+        )
         if (
-            parsed.scheme != "https"
+            not same_origin
+            or parsed.scheme != "https"
             or not parsed.hostname
             or parsed.username
             or parsed.password
@@ -95,33 +110,57 @@ class ReadOnlyHttpAdapter:
             raise ValueError("INVALID_RENDER_DEPLOY_RESPONSE")
         return deployment
 
-    def _mcp_read(self, tool: str, arguments: dict[str, Any]) -> dict[str, Any]:
-        if tool not in {"plugin_info", "financial_audit_snapshot", "compare_financial_audit"}:
-            raise ValueError("MCP_TOOL_NOT_ALLOWLISTED")
-        request = {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "tools/call",
-            "params": {"name": tool, "arguments": arguments},
+    def _mcp_request(self, message: dict[str, Any], *, session: str | None = None) -> dict[str, Any]:
+        headers = {
+            "Authorization": "Bearer " + self._mcp_token,
+            "Accept": "application/json, text/event-stream",
+            "Content-Type": "application/json",
+            "MCP-Protocol-Version": "2025-06-18",
         }
+        if session is not None:
+            headers["Mcp-Session-Id"] = session
         response = self._client.post(
-            self._mcp_url,
-            headers={
-                "Authorization": "Bearer " + self._mcp_token,
-                "Accept": "application/json, text/event-stream",
-                "Content-Type": "application/json",
-                "MCP-Protocol-Version": "2025-11-25",
-            },
-            json=request,
-            follow_redirects=False,
+            self._mcp_url, headers=headers, json=message, follow_redirects=False
         )
         response.raise_for_status()
         if "application/json" not in response.headers.get("content-type", ""):
             raise ValueError("UNEXPECTED_MCP_TRANSPORT")
-        payload = response.json()
-        if not isinstance(payload, dict) or "error" in payload:
+        payload: Any = response.json()
+        if not isinstance(payload, dict) or payload.get("jsonrpc") != "2.0":
+            raise ValueError("INVALID_MCP_RESPONSE")
+        if "error" in payload:
             raise ValueError("MCP_READ_FAILED")
-        result = payload.get("result")
+        if "id" in message and payload.get("id") != message["id"]:
+            raise ValueError("MCP_RESPONSE_ID_MISMATCH")
+        return payload
+
+    def _mcp_read(self, tool: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        if tool not in {"plugin_info", "financial_audit_snapshot", "compare_financial_audit"}:
+            raise ValueError("MCP_TOOL_NOT_ALLOWLISTED")
+        initialized = self._mcp_request({
+            "jsonrpc": "2.0", "id": 1, "method": "initialize",
+            "params": {
+                "protocolVersion": "2025-06-18",
+                "capabilities": {},
+                "clientInfo": {"name": "pet-finance-deploy-audit", "version": "1.0.0"},
+            },
+        })
+        handshake = initialized.get("result")
+        if (
+            not isinstance(handshake, dict)
+            or handshake.get("protocolVersion") != "2025-06-18"
+            or not isinstance(handshake.get("capabilities"), dict)
+        ):
+            raise ValueError("MCP_HANDSHAKE_REJECTED")
+        # Stateless FastMCP transport: the server does not require a session cookie.
+        self._mcp_request({
+            "jsonrpc": "2.0", "method": "notifications/initialized",
+        })
+        reply = self._mcp_request({
+            "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+            "params": {"name": tool, "arguments": arguments},
+        })
+        result = reply.get("result")
         if not isinstance(result, dict) or result.get("isError"):
             raise ValueError("MCP_TOOL_FAILED")
         structured = result.get("structuredContent")
