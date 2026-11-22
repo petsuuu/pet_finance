@@ -59,10 +59,7 @@ def _read_rows(service: Ledger, name: str, *, archived: bool | None = None) -> l
         query = query.where(
             table.c.archived_at.is_not(None) if archived else table.c.archived_at.is_(None)
         )
-    rows = [
-        _normalize(dict(row))
-        for row in service.connection.execute(query).mappings()
-    ]
+    rows = [_normalize(dict(row)) for row in service.connection.execute(query).mappings()]
     primary_key = "account_id" if name == "account_balances" else "id"
     rows.sort(key=lambda row: str(row[primary_key]))
     return rows
@@ -181,9 +178,8 @@ def compare_financial_snapshots(
         for account_id in sorted(set(previous) | set(latest))
         if previous.get(account_id) != latest.get(account_id)
     ]
-    matches = (
-        baseline["snapshot_hash"] == current["snapshot_hash"]
-        and all(section["matches"] for section in section_results)
+    matches = baseline["snapshot_hash"] == current["snapshot_hash"] and all(
+        section["matches"] for section in section_results
     )
     return {
         "status": "MATCH" if matches else "REVIEW_REQUIRED",
