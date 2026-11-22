@@ -39,6 +39,11 @@ from app.services.oauth import OwnerOAuth
 from app.services.payments import PaymentInput
 
 
+def _query_params(**values: object) -> dict[str, str]:
+    """Serialize only explicitly named public arguments, omitting unset fields."""
+    return {key: str(value) for key, value in values.items() if value is not None}
+
+
 def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
     oauth = OwnerOAuth(settings, engine)
     host = urlsplit(oauth.issuer).netloc
@@ -230,7 +235,15 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         """
         if archive_mode not in {"active", "archived", "all"}:
             raise ValueError("archive_mode must be active, archived or all")
-        params = {k: str(v) for k, v in locals().items() if v is not None}
+        params = _query_params(
+            start_date=start_date,
+            end_date=end_date,
+            search=search,
+            status=status,
+            limit=limit,
+            offset=offset,
+            archive_mode=archive_mode,
+        )
         return {"items": await rest("GET", "/transactions", params=params)}
 
     @server.tool(annotations=read, meta=meta)
@@ -288,7 +301,9 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         POSTED vinculado à recorrência de salário não comprova depósito bancário.
         Alertas são somente leitura; qualquer redistribuição exige autorização.
         """
-        params = {k: str(v) for k, v in locals().items() if v is not None}
+        params = _query_params(
+            year=year, month=month, as_of=as_of, safety_margin=safety_margin
+        )
         result: dict[str, Any] = await rest("GET", "/dashboard/monthly", params=params)
         return result
 
@@ -302,7 +317,7 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         missing_forecasts para auditoria. Não grava previsões nem confirma pagamentos.
         Datas dos registros são transaction_date; não invente vencimentos ou datas de pagamento.
         """
-        params = {k: str(v) for k, v in locals().items() if v is not None}
+        params = _query_params(year=year, month=month, as_of=as_of)
         result: dict[str, Any] = await rest("GET", "/dashboard/agenda", params=params)
         return result
 
@@ -314,7 +329,7 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         são consideradas no dia consultado. A projeção não inclui novos gastos variáveis,
         não confirma saldo bancário e não garante limite de gasto.
         """
-        params = {k: str(v) for k, v in locals().items() if v is not None}
+        params = _query_params(as_of=as_of, safety_margin=safety_margin)
         result: dict[str, Any] = await rest("GET", "/dashboard/cashflow", params=params)
         return result
 
@@ -331,7 +346,9 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         Não apresente previsão como quitação ou transferência de poupança. Data nula
         significa que o cenário não demonstrou recuperação até o fim do mês.
         """
-        params = {k: str(v) for k, v in locals().items() if v is not None}
+        params = _query_params(
+            safety_margin=safety_margin, estimated_bank_charges=estimated_bank_charges
+        )
         result: dict[str, Any] = await rest("GET", "/dashboard/recovery-plan", params=params)
         return result
 
@@ -347,7 +364,9 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         não garantia bancária. Informe saldo após compra, motivos e próximos compromissos.
         A margem padrão zero não é uma reserva; respeite a margem indicada pelo usuário.
         """
-        params = {k: str(v) for k, v in locals().items() if v is not None}
+        params = _query_params(
+            amount=amount, category_id=category_id, safety_margin=safety_margin
+        )
         result: dict[str, Any] = await rest("GET", "/dashboard/purchase-check", params=params)
         return result
 
