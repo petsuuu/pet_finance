@@ -50,7 +50,11 @@ def envelope_allocation_preview(
                     need - Decimal(destination["pending_transfer_in_not_available"]),
                 )
             amount = min(available, need)
-            if amount > ZERO and source is not None and source["account_id"] != destination["account_id"]:
+            if (
+                amount > ZERO
+                and source is not None
+                and source["account_id"] != destination["account_id"]
+            ):
                 suggestions.append(
                     {
                         "from_account_id": source["account_id"],
@@ -76,9 +80,17 @@ def envelope_allocation_preview(
                     "remaining_gap": max(
                         ZERO,
                         -Decimal(row["after_known_commitments_without_income"])
-                        - (Decimal(row["pending_transfer_in_not_available"]) if conditional else ZERO)
+                        - (
+                            Decimal(row["pending_transfer_in_not_available"])
+                            if conditional
+                            else ZERO
+                        )
                         - sum(
-                            (move["amount"] for move in suggestions if move["to_account_id"] == row["account_id"]),
+                            (
+                                move["amount"]
+                                for move in suggestions
+                                if move["to_account_id"] == row["account_id"]
+                            ),
                             ZERO,
                         ),
                     ),
