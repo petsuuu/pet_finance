@@ -1,8 +1,8 @@
 """Read-only salary receipt readiness and post-salary envelope shortage alerts."""
 
+import unicodedata
 from decimal import Decimal
 from typing import Any
-import unicodedata
 
 ZERO = Decimal("0")
 PRIORITY = {"Essenciais": 0, "Não Essenciais": 1}
