@@ -72,15 +72,12 @@ def _bucket_manifest(rows: list[dict[str, Any]], *, key: str) -> dict[str, dict[
     Each bucket has a deterministic content hash. Collisions only affect
     diagnostic granularity: the full section SHA-256 still detects every change.
     """
-    buckets: dict[str, list[dict[str, Any]]] = {
-        str(index): [] for index in range(BUCKET_COUNT)
-    }
+    buckets: dict[str, list[dict[str, Any]]] = {str(index): [] for index in range(BUCKET_COUNT)}
     for row in rows:
         index = hashlib.sha256(str(row[key]).encode("utf-8")).digest()[0] % BUCKET_COUNT
         buckets[str(index)].append(row)
     return {
-        index: {"count": len(items), "sha256": _digest(items)}
-        for index, items in buckets.items()
+        index: {"count": len(items), "sha256": _digest(items)} for index, items in buckets.items()
     }
 
 
@@ -210,9 +207,7 @@ def compare_financial_snapshots(
             "matches": baseline["sections"][name] == current["sections"][name],
             "changed_buckets": [
                 bucket
-                for bucket in sorted(
-                    baseline["sections"][name]["buckets"], key=int
-                )
+                for bucket in sorted(baseline["sections"][name]["buckets"], key=int)
                 if baseline["sections"][name]["buckets"][bucket]
                 != current["sections"][name]["buckets"][bucket]
             ],
