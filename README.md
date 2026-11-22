@@ -1,3 +1,7 @@
+## Dashboard de qualidade dos dados (somente leitura)
+
+`GET /api/v1/dashboard/data-quality?limit=100` exige o mesmo Bearer token das demais APIs e organiza os resultados da auditoria `/api/v1/audit/integrity` em três seções: conciliação de saldos, possíveis duplicidades e contas de recorrências pendentes. Cada seção informa gravidade (`OK`, `REVIEW` ou `CRITICAL`), contagem total, itens para revisão e se a amostra foi truncada pelo limite (1 a 500). Diferenças de saldo têm prioridade sobre os demais alertas. Não classifica duplicatas como erro confirmado nem modifica dados. Esta versão é um **endpoint JSON**, não uma tela web; não existe interface própria no repositório.
+
 # Pet Finance
 
 ## Cancelamento com prévia e estabelecimentos
