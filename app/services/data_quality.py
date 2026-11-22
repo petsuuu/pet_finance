@@ -1,9 +1,15 @@
 """Read-only data-quality dashboard built from the existing financial integrity audit."""
 
+from calendar import monthrange
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Annotated, Any
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Query
 
+from app.services.dashboard import monthly_dashboard
+from app.services.financial_quality import financial_quality_signals
 from app.services.integrity_audit import inspect_integrity
 from app.services.ledger import Ledger
 
@@ -141,5 +147,20 @@ def data_quality_router(dependency: Any) -> APIRouter:
         limit: Annotated[int, Query(ge=1, le=500)] = 100,
     ) -> dict[str, Any]:
         return data_quality_dashboard(service, limit=limit)
+
+    @router.get("/dashboard/financial-quality")
+    def financial_quality(
+        service: Service,
+        year: Annotated[int, Query(ge=2000, le=2100)],
+        month: Annotated[int, Query(ge=1, le=12)],
+        as_of: date | None = None,
+        limit: Annotated[int, Query(ge=1, le=500)] = 100,
+    ) -> dict[str, Any]:
+        today = as_of or datetime.now(ZoneInfo("America/Sao_Paulo")).date()
+        if as_of is None and (year, month) < (today.year, today.month):
+            today = date(year, month, monthrange(year, month)[1])
+        quality = data_quality_dashboard(service, limit=limit)
+        monthly = monthly_dashboard(service, year, month, today, Decimal("0"))
+        return financial_quality_signals(quality, monthly)
 
     return router
