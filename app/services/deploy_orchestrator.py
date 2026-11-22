@@ -231,7 +231,7 @@ def verify_postdeploy(
         ):
             return _blocked("EVIDENCE_BINDING_MISMATCH", "postdeploy")
         if not approval_verifier.verify(
-            record.get("approval_receipt"),
+            record["approval_receipt"] if isinstance(record.get("approval_receipt"), dict) else {},
             service_id=service_id,
             commit=commit,
             plugin_version=plugin_version,
