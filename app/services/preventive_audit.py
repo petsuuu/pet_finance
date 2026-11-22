@@ -150,3 +150,40 @@ def pending_recurrence_duplicate_groups(
             }
         )
     return sorted(findings, key=lambda row: (row["month"], row["recurrence_id"]))
+
+def settled_pending_recurrence_overlaps(
+    transactions: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Review pending obligations when the same recurrence has a posted item that month.
+
+    A posting is not proof that the pending item is redundant: the original
+    obligation may have been split or adjusted. Never auto-settle or delete it.
+    """
+    buckets: dict[tuple[Any, int, int], dict[str, list[dict[str, Any]]]] = defaultdict(
+        lambda: {"PENDING": [], "POSTED": []}
+    )
+    for movement in transactions:
+        rule_id = movement.get("recurrence_id")
+        status = movement["status"]
+        if rule_id is None or status not in {"PENDING", "POSTED"}:
+            continue
+        due = movement["transaction_date"]
+        buckets[(rule_id, due.year, due.month)][status].append(movement)
+
+    findings: list[dict[str, Any]] = []
+    for (rule_id, year, month), bucket in buckets.items():
+        pending = bucket["PENDING"]
+        posted = bucket["POSTED"]
+        if not pending or not posted:
+            continue
+        findings.append(
+            {
+                "recurrence_id": str(rule_id),
+                "month": f"{year:04d}-{month:02d}",
+                "pending_transaction_ids": sorted(str(row["id"]) for row in pending),
+                "posted_transaction_ids": sorted(str(row["id"]) for row in posted),
+                "reason": "pending_and_posted_same_recurrence_month",
+                "requires_review": True,
+            }
+        )
+    return sorted(findings, key=lambda row: (row["month"], row["recurrence_id"]))
