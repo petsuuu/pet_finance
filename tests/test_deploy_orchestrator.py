@@ -1,6 +1,7 @@
 """PR #54: encrypted baseline lifecycle and read-only release orchestration."""
 
 from copy import deepcopy
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,9 @@ from app.services.audit_snapshots import SECTION_NAMES, _digest
 from app.services.deploy_orchestrator import prepare_predeploy, verify_postdeploy
 
 SHA = "a" * 40
+NOW = datetime(2026, 11, 22, 19, 0, tzinfo=timezone.utc)
+AUTHORIZATION = "approval-20261122-1234"
+EXECUTION = "release-20261122-1234"
 SERVICE = {"id": "srv-test", "branch": "main", "autoDeploy": "no", "autoDeployTrigger": "off"}
 PLUGIN = {"version": "0.4.0", "read_only": True}
 EMPTY_HASH = _digest([])
@@ -35,7 +39,7 @@ def baseline() -> dict[str, Any]:
     return {
         **core,
         "snapshot_hash": _digest(core),
-        "captured_at": "2026-11-22T19:00:00+00:00",
+        "captured_at": NOW.isoformat(),
         "read_only": True,
     }
 
@@ -81,6 +85,7 @@ class FakeSources:
             "requires_user_review": mismatch,
             "read_only": True,
             "before_hash": snapshot["snapshot_hash"],
+            "after_captured_at": NOW.isoformat(),
             "after_hash": "b" * 64 if mismatch else snapshot["snapshot_hash"],
             "sections": [
                 {
@@ -114,6 +119,9 @@ def preflight(
         plugin_version="0.4.0",
         vault_dir=directory,
         encryption_key=key,
+        authorization_id=AUTHORIZATION,
+        execution_id=EXECUTION,
+        now=NOW,
     )
 
 
@@ -125,6 +133,9 @@ def postflight(source: FakeSources, file: Path, key: bytes, *, commit: str = SHA
         service_id="srv-test",
         commit=commit,
         plugin_version="0.4.0",
+        authorization_id=AUTHORIZATION,
+        execution_id=EXECUTION,
+        now=NOW + timedelta(minutes=2),
     )
 
 
@@ -225,3 +236,92 @@ def test_read_only_source_failure_blocks_without_secret_leak(tmp_path: Path) -> 
     result = preflight(source, tmp_path / "private", Fernet.generate_key())
     assert result["status"] == "BLOCKED"
     assert "secret" not in str(result)
+
+
+def test_bound_authorization_execution_and_baseline_freshness(tmp_path: Path) -> None:
+    source = FakeSources()
+    key = Fernet.generate_key()
+    file = Path(preflight(source, tmp_path / "private", key)["evidence_file"])
+    invalid_auth = verify_postdeploy(
+        source, evidence_file=file, encryption_key=key, service_id="srv-test",
+        commit=SHA, plugin_version="0.4.0",
+        authorization_id="another-approval-reference",
+        execution_id=EXECUTION, now=NOW + timedelta(minutes=1),
+    )
+    assert invalid_auth["status"] == "BLOCKED"
+    assert invalid_auth["issues"] == ["EVIDENCE_BINDING_MISMATCH"]
+    expired = verify_postdeploy(
+        source, evidence_file=file, encryption_key=key, service_id="srv-test",
+        commit=SHA, plugin_version="0.4.0",
+        authorization_id=AUTHORIZATION,
+        execution_id=EXECUTION, now=NOW + timedelta(hours=3),
+    )
+    assert expired["issues"] == ["EXPIRED_BASELINE"]
+    source.snapshot["captured_at"] = (NOW - timedelta(minutes=6)).isoformat()
+    assert preflight(source, tmp_path / "fresh", key)["issues"] == ["STALE_BASELINE"]
+
+
+def test_future_dated_evidence_cannot_pass(tmp_path: Path) -> None:
+    source = FakeSources()
+    source.snapshot["captured_at"] = (NOW + timedelta(minutes=1)).isoformat()
+    result = preflight(source, tmp_path / "future", Fernet.generate_key())
+    assert result["issues"] == ["STALE_BASELINE"]
+
+
+def test_postflight_rejects_stale_comparison(tmp_path: Path) -> None:
+    source = FakeSources()
+    key = Fernet.generate_key()
+    file = Path(preflight(source, tmp_path / "private", key)["evidence_file"])
+    original = source.compare_financial_audit
+
+    def stale(baseline: dict[str, Any]) -> dict[str, Any]:
+        result = original(baseline)
+        result["after_captured_at"] = (NOW - timedelta(minutes=6)).isoformat()
+        return result
+
+    source.compare_financial_audit = stale  # type: ignore[method-assign]
+    assert postflight(source, file, key)["issues"] == ["STALE_POSTDEPLOY_EVIDENCE"]
+
+
+def test_vault_rejects_symlink_and_non_private_directory(tmp_path: Path) -> None:
+    source = FakeSources()
+    key = Fernet.generate_key()
+    trusted = tmp_path / "trusted"
+    trusted.mkdir(mode=0o700)
+    shortcut = tmp_path / "shortcut"
+    shortcut.symlink_to(trusted, target_is_directory=True)
+    assert preflight(source, shortcut, key)["status"] == "BLOCKED"
+    public = tmp_path / "public"
+    public.mkdir()
+    public.chmod(0o755)
+    assert preflight(source, public, key)["status"] == "BLOCKED"
+
+
+def test_vault_rejects_symlink_evidence_file(tmp_path: Path) -> None:
+    source = FakeSources()
+    key = Fernet.generate_key()
+    file = Path(preflight(source, tmp_path / "private", key)["evidence_file"])
+    link = file.parent / "linked.sealed"
+    link.symlink_to(file)
+    assert postflight(source, link, key)["status"] == "BLOCKED"
+
+
+def test_no_partial_file_on_fsync_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    source = FakeSources()
+    key = Fernet.generate_key()
+    import app.services.deploy_orchestrator as module
+
+    original = module.os.fsync
+    calls = 0
+
+    def broken(fd: int) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise OSError("filesystem failure")
+        original(fd)
+
+    monkeypatch.setattr(module.os, "fsync", broken)
+    result = preflight(source, tmp_path / "private", key)
+    assert result["status"] == "BLOCKED"
+    assert list((tmp_path / "private").iterdir()) == []
