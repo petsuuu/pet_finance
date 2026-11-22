@@ -18,9 +18,15 @@ def data_quality_dashboard(service: Ledger, *, limit: int = 100) -> dict[str, An
     classification_count = summary.get("classification_findings", 0)
     similar_count = summary.get("similar_duplicate_pairs", 0)
     reference_count = summary.get("pending_reference_findings", 0)
+    repeated_pending_count = summary.get("pending_recurrence_duplicate_groups", 0)
 
     review_count = (
-        duplicate_count + recurrence_count + classification_count + similar_count + reference_count
+        duplicate_count
+        + recurrence_count
+        + classification_count
+        + similar_count
+        + reference_count
+        + repeated_pending_count
     )
     status = "CRITICAL" if balance_count else ("REVIEW" if review_count else "OK")
     sections = [
@@ -73,6 +79,15 @@ def data_quality_dashboard(service: Ledger, *, limit: int = 100) -> dict[str, An
             "truncated": audit["truncated"].get("pending_reference_findings", False),
         },
         {
+            "id": "repeated_pending_recurrences",
+            "title": "Pendências recorrentes repetidas",
+            "severity": "REVIEW" if repeated_pending_count else "OK",
+            "count": repeated_pending_count,
+            "description": "Mais de uma pendência da mesma recorrência no mesmo mês.",
+            "items": audit.get("pending_recurrence_duplicates", []),
+            "truncated": audit["truncated"].get("pending_recurrence_duplicates", False),
+        },
+        {
             "id": "similar_duplicates",
             "title": "Descrições semelhantes",
             "severity": "REVIEW" if similar_count else "OK",
@@ -93,6 +108,7 @@ def data_quality_dashboard(service: Ledger, *, limit: int = 100) -> dict[str, An
             "classification_findings": classification_count,
             "similar_duplicate_pairs": similar_count,
             "pending_reference_findings": reference_count,
+            "pending_recurrence_duplicate_groups": repeated_pending_count,
             "total_findings": balance_count + review_count,
         },
         "sections": sections,
