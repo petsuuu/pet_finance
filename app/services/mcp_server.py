@@ -249,6 +249,10 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         para afirmar economia. SEM_BASE_COMPARAVEL indica evidência insuficiente.
         Férias permanecem no consumo real, separadas em extraordinary_net. Gasto menor
         não prova poupança; preserve datas reais e não some categorias pai/filhas novamente.
+        income_reconciliation separa dinheiro recebido, receitas pendentes e previsões
+        sem lançamento. monthly_planning reserva compromissos, orçamento restante,
+        meta e margem sem somar receitas futuras ao caixa disponível. Nenhuma dessas
+        projeções registra transações ou comprova conciliação bancária.
         """
         params = {k: str(v) for k, v in locals().items() if v is not None}
         result: dict[str, Any] = await rest("GET", "/dashboard/monthly", params=params)
