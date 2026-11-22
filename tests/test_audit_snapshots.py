@@ -12,16 +12,12 @@ from app.db.database import build_engine
 
 
 def add_account(client: TestClient, name: str) -> str:
-    response = client.post(
-        "/api/v1/accounts", json={"name": name, "opening_balance": "100.00"}
-    )
+    response = client.post("/api/v1/accounts", json={"name": name, "opening_balance": "100.00"})
     assert response.status_code == 201, response.text
     return str(response.json()["id"])
 
 
-def add_expense(
-    client: TestClient, account_id: str, *, status: str, key: str, amount: str
-) -> str:
+def add_expense(client: TestClient, account_id: str, *, status: str, key: str, amount: str) -> str:
     response = client.post(
         "/api/v1/transactions",
         json={
@@ -74,9 +70,7 @@ def test_snapshot_is_deterministic_complete_and_never_mutates(client: TestClient
     assert before["balances"][0]["current_balance"] == "89.00"
     assert before["quality"]["status"] == "OK"
 
-    comparison = client.post(
-        "/api/v1/audit/financial-snapshot/compare", json={"baseline": before}
-    )
+    comparison = client.post("/api/v1/audit/financial-snapshot/compare", json={"baseline": before})
     assert comparison.status_code == 200, comparison.text
     result = comparison.json()
     assert result["status"] == "MATCH"
@@ -100,23 +94,20 @@ def test_compare_detects_payment_changes_and_blocks_modified_baseline(
     before = client.get("/api/v1/audit/financial-snapshot").json()
 
     tampered = {**before, "snapshot_hash": "0" * 64}
-    invalid = client.post(
-        "/api/v1/audit/financial-snapshot/compare", json={"baseline": tampered}
-    )
+    invalid = client.post("/api/v1/audit/financial-snapshot/compare", json={"baseline": tampered})
     assert invalid.status_code == 422
-    assert client.post(
-        "/api/v1/audit/financial-snapshot/compare",
-        json={"baseline": {"schema_version": 999}},
-    ).status_code == 422
-
-    changed = client.patch(
-        f"/api/v1/transactions/{movement}", json={"status": "POSTED"}
+    assert (
+        client.post(
+            "/api/v1/audit/financial-snapshot/compare",
+            json={"baseline": {"schema_version": 999}},
+        ).status_code
+        == 422
     )
+
+    changed = client.patch(f"/api/v1/transactions/{movement}", json={"status": "POSTED"})
     assert changed.status_code == 200, changed.text
 
-    result = client.post(
-        "/api/v1/audit/financial-snapshot/compare", json={"baseline": before}
-    )
+    result = client.post("/api/v1/audit/financial-snapshot/compare", json={"baseline": before})
     assert result.status_code == 200, result.text
     payload = result.json()
     assert payload["status"] == "REVIEW_REQUIRED"
@@ -170,12 +161,18 @@ def test_read_only_mvcc_snapshot_remains_coherent_during_concurrent_update(
 
 
 def test_snapshot_endpoints_require_authentication(client: TestClient) -> None:
-    assert client.get(
-        "/api/v1/audit/financial-snapshot",
-        headers={"Authorization": "Bearer invalid"},
-    ).status_code == 401
-    assert client.post(
-        "/api/v1/audit/financial-snapshot/compare",
-        json={"baseline": {}},
-        headers={"Authorization": "Bearer invalid"},
-    ).status_code == 401
+    assert (
+        client.get(
+            "/api/v1/audit/financial-snapshot",
+            headers={"Authorization": "Bearer invalid"},
+        ).status_code
+        == 401
+    )
+    assert (
+        client.post(
+            "/api/v1/audit/financial-snapshot/compare",
+            json={"baseline": {}},
+            headers={"Authorization": "Bearer invalid"},
+        ).status_code
+        == 401
+    )
