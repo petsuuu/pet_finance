@@ -9,9 +9,7 @@ from fastapi.testclient import TestClient
 from app.services.preventive_audit import pending_recurrence_duplicate_groups
 
 
-def movement(
-    recurrence_id: object, due: date, status: str = "PENDING"
-) -> dict[str, object]:
+def movement(recurrence_id: object, due: date, status: str = "PENDING") -> dict[str, object]:
     return {
         "id": uuid4(),
         "recurrence_id": recurrence_id,
