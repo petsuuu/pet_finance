@@ -55,8 +55,12 @@ def test_income_receipts_are_distinct_from_promises_and_forecasts() -> None:
     ]
     original = [dict(row) for row in entries]
     result = income_reconciliation(
-        entries, [rule, missing], accounts, date(2026, 11, 1), date(2026, 11, 30),
-        date(2026, 11, 22)
+        entries,
+        [rule, missing],
+        accounts,
+        date(2026, 11, 1),
+        date(2026, 11, 30),
+        date(2026, 11, 22),
     )
     assert result["received"] == Decimal("520")
     assert result["pending_recorded"] == Decimal("500")
@@ -97,8 +101,7 @@ def test_cancelled_rule_occurrence_is_not_recreated_as_salary() -> None:
 
 def test_planning_never_credits_expected_income_as_spendable() -> None:
     result = planning_summary(
-        Decimal("100"), Decimal("80"), Decimal("30"), Decimal("20"),
-        Decimal("10"), Decimal("1000")
+        Decimal("100"), Decimal("80"), Decimal("30"), Decimal("20"), Decimal("10"), Decimal("1000")
     )
     assert result["available_without_future_income"] == Decimal("0")
     assert result["unfunded_without_future_income"] == Decimal("40")
@@ -111,9 +114,7 @@ def test_planning_never_credits_expected_income_as_spendable() -> None:
 
 
 def test_monthly_dashboard_is_read_only_and_reconciles_income(client: TestClient) -> None:
-    account = client.post(
-        "/api/v1/accounts", json={"name": "Carteira", "opening_balance": "100"}
-    )
+    account = client.post("/api/v1/accounts", json={"name": "Carteira", "opening_balance": "100"})
     assert account.status_code == 201, account.text
     account_id = account.json()["id"]
     recurrence = client.post(
