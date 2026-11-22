@@ -253,6 +253,12 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         sem lançamento. monthly_planning reserva compromissos, orçamento restante,
         meta e margem sem somar receitas futuras ao caixa disponível. Nenhuma dessas
         projeções registra transações ou comprova conciliação bancária.
+        envelope_projections mostra saldo registrado por conta, obrigações conhecidas,
+        transferências pendentes e recebimentos estimados separados. Não confundir
+        o saldo projetado por conta com um limite de gasto: orçamento por categoria,
+        parcelas ainda não registradas e meta de reserva não são rateados ali.
+        recurring_income_checks explicita recebimentos parciais e a diferença
+        não registrada sem transformar essa diferença em receita pendente.
         """
         params = {k: str(v) for k, v in locals().items() if v is not None}
         result: dict[str, Any] = await rest("GET", "/dashboard/monthly", params=params)
