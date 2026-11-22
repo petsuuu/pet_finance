@@ -123,6 +123,10 @@ class ReadOnlyHttpAdapter:
             self._mcp_url, headers=headers, json=message, follow_redirects=False
         )
         response.raise_for_status()
+        if message.get("method") == "notifications/initialized":
+            if response.status_code != 202:
+                raise ValueError("MCP_NOTIFICATION_NOT_ACCEPTED")
+            return {"jsonrpc": "2.0"}
         if "application/json" not in response.headers.get("content-type", ""):
             raise ValueError("UNEXPECTED_MCP_TRANSPORT")
         payload: Any = response.json()
