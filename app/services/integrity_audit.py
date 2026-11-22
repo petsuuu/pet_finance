@@ -23,7 +23,10 @@ def inspect_integrity(service: Ledger, *, limit: int = 100) -> dict[str, Any]:
     account_rows = [
         dict(row)
         for row in service.connection.execute(
-            select(accounts_table).where(accounts_table.c.user_id == service.user_id)
+            select(accounts_table).where(
+                accounts_table.c.user_id == service.user_id,
+                accounts_table.c.active.is_(True),
+            )
         ).mappings()
     ]
     transactions = [
@@ -130,7 +133,7 @@ def inspect_integrity(service: Ledger, *, limit: int = 100) -> dict[str, Any]:
     recurrence_mismatches = []
     for movement in transactions:
         rule_id = movement.get("recurrence_id")
-        if rule_id is None or movement["status"] == "CANCELLED":
+        # Paid historical occurrences may legitimately retain their former account.\n        if rule_id is None or movement["status"] != "PENDING":
             continue
         rule = rules.get(rule_id)
         if rule is None:
