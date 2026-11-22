@@ -21,8 +21,12 @@ def data_quality_dashboard(service: Ledger, *, limit: int = 100) -> dict[str, An
     repeated_pending_count = summary.get("pending_recurrence_duplicate_groups", 0)
 
     review_count = (
-        duplicate_count + recurrence_count + classification_count + similar_count
-        + reference_count + repeated_pending_count
+        duplicate_count
+        + recurrence_count
+        + classification_count
+        + similar_count
+        + reference_count
+        + repeated_pending_count
     )
     status = "CRITICAL" if balance_count else ("REVIEW" if review_count else "OK")
     sections = [
