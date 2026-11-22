@@ -301,9 +301,7 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         POSTED vinculado à recorrência de salário não comprova depósito bancário.
         Alertas são somente leitura; qualquer redistribuição exige autorização.
         """
-        params = _query_params(
-            year=year, month=month, as_of=as_of, safety_margin=safety_margin
-        )
+        params = _query_params(year=year, month=month, as_of=as_of, safety_margin=safety_margin)
         result: dict[str, Any] = await rest("GET", "/dashboard/monthly", params=params)
         return result
 
@@ -364,9 +362,7 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         não garantia bancária. Informe saldo após compra, motivos e próximos compromissos.
         A margem padrão zero não é uma reserva; respeite a margem indicada pelo usuário.
         """
-        params = _query_params(
-            amount=amount, category_id=category_id, safety_margin=safety_margin
-        )
+        params = _query_params(amount=amount, category_id=category_id, safety_margin=safety_margin)
         result: dict[str, Any] = await rest("GET", "/dashboard/purchase-check", params=params)
         return result
 
