@@ -263,6 +263,10 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         para cobrir lacunas em Essenciais e Não Essenciais: um cenário limitado
         ao dinheiro registrado e outro condicional a entradas futuras.
         Ambos são apenas revisão; nunca execute transferências automaticamente.
+        post_salary_envelope_alerts destaca lacunas ainda sem cobertura nos envelopes
+        e separa salário pendente, parcialmente registrado e registrado. Um lançamento
+        POSTED vinculado à recorrência de salário não comprova depósito bancário.
+        Alertas são somente leitura; qualquer redistribuição exige autorização.
         """
         params = {k: str(v) for k, v in locals().items() if v is not None}
         result: dict[str, Any] = await rest("GET", "/dashboard/monthly", params=params)
