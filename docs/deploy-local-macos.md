@@ -102,3 +102,17 @@ A **chave real só será gerada quando o operador executar `init` no Mac**.
 O CI usa somente uma Keychain em memória simulada; nenhum segredo real é
 criado, e nenhum serviço externo adicional é provisionado.
 A PR deve permanecer draft e o Auto-Deploy OFF.
+
+## Alternativa sem uso do Mac: homologação automática no GitHub
+
+A PR #54 inclui o job `approval-security` em `.github/workflows/checks.yml`,
+executado em push/PR. Ele gera **chaves Ed25519 efêmeras apenas na memória**
+e testa verificação válida, adulteração de claims, chave incorreta, expiração
+e divergência de identificadores. A execução usa permissões GitHub
+`contents: read`, sem secrets de produção e sem acesso ao Render.
+
+Essa homologação não usa o Keychain, não cria chaves persistentes e **não
+constitui aprovação de produção**. O processo de deploy continua bloqueado
+até existir uma autoridade de produção previamente confiável e uma autorização
+humana específica. O Auto-Deploy deve permanecer desligado. O fluxo local
+acima fica opcional, caso futuramente seja escolhido como autoridade real.
