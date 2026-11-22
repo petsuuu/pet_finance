@@ -80,7 +80,6 @@ def similar_description_duplicates(
     return sorted(findings, key=lambda item: (item["date"], item["transaction_ids"]))
 
 
-
 def pending_reference_findings(
     transactions: list[dict[str, Any]],
     accounts: list[dict[str, Any]],
