@@ -3,6 +3,7 @@
 This module never deploys or accesses financial accounts. A successful check only
 attests to GitHub environment policy, not to human approval or a safe release.
 """
+
 import json
 import os
 import sys
@@ -69,7 +70,7 @@ def main() -> int:
         ref=os.getenv("GITHUB_REF", ""),
         event=os.getenv("GITHUB_EVENT_NAME", ""),
     )
-    print(f'{result["status"]}: {result["reason"]}')
+    print(f"{result['status']}: {result['reason']}")
     return 0 if result["status"] == "PASS" else 1
 
 
