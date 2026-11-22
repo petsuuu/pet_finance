@@ -303,7 +303,7 @@ def test_bound_authorization_execution_and_baseline_freshness(tmp_path: Path) ->
         approval_verifier=VERIFIER,
         now=NOW + timedelta(hours=3),
     )
-    assert expired["issues"] == ["EXPIRED_BASELINE"]
+    assert expired["issues"] == ["AUTHORIZATION_NOT_VERIFIED"]
     source.snapshot["captured_at"] = (NOW - timedelta(minutes=6)).isoformat()
     assert preflight(source, tmp_path / "fresh", key)["issues"] == ["STALE_BASELINE"]
 
