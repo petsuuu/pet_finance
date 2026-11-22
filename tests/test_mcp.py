@@ -636,12 +636,18 @@ def test_mcp_quality_dashboard_is_read_only(mcp_client: TestClient) -> None:
     assert first["structuredContent"]["summary"]["accounts_checked"] == 1
     assert first["structuredContent"]["summary"]["total_findings"] == 0
     assert first["structuredContent"]["sections"][0]["id"] == "balances"
-    assert mcp_client.get(
-        "/api/v1/transactions", headers={"Authorization": "Bearer test-token"}
-    ).json() == transactions_before
-    assert mcp_client.get(
-        "/api/v1/audit/transactions", headers={"Authorization": "Bearer test-token"}
-    ).json() == history_before
+    assert (
+        mcp_client.get(
+            "/api/v1/transactions", headers={"Authorization": "Bearer test-token"}
+        ).json()
+        == transactions_before
+    )
+    assert (
+        mcp_client.get(
+            "/api/v1/audit/transactions", headers={"Authorization": "Bearer test-token"}
+        ).json()
+        == history_before
+    )
 
 
 def test_mcp_quality_dashboard_rejects_invalid_limit(mcp_client: TestClient) -> None:
@@ -658,9 +664,12 @@ def test_mcp_quality_dashboard_rejects_invalid_limit(mcp_client: TestClient) -> 
 
 
 def test_mcp_quality_dashboard_requires_authentication(mcp_client: TestClient) -> None:
-    assert rpc(
-        mcp_client,
-        "test-token",
-        "tools/call",
-        {"name": "data_quality_dashboard", "arguments": {}},
-    ).status_code == 401
+    assert (
+        rpc(
+            mcp_client,
+            "test-token",
+            "tools/call",
+            {"name": "data_quality_dashboard", "arguments": {}},
+        ).status_code
+        == 401
+    )
