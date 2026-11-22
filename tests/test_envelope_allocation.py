@@ -8,8 +8,7 @@ from app.services.envelope_allocation import envelope_allocation_preview
 
 
 def envelope(
-    identity: str, name: str, balance_after_commitments: str, forecast: str,
-    pending_in: str = "0"
+    identity: str, name: str, balance_after_commitments: str, forecast: str, pending_in: str = "0"
 ) -> dict[str, object]:
     return {
         "account_id": identity,
@@ -39,9 +38,7 @@ def test_allocation_caps_recorded_cash_and_prioritizes_essential_needs() -> None
     assert current["suggestions"][0]["to_account"] == "Essenciais"
     assert current["unfunded_envelopes"][0]["remaining_gap"] == Decimal("60")
     assert conditional["source_ceiling"] == Decimal("130")
-    assert [r["amount"] for r in conditional["suggestions"]] == [
-        Decimal("70"), Decimal("60")
-    ]
+    assert [r["amount"] for r in conditional["suggestions"]] == [Decimal("70"), Decimal("60")]
     assert conditional["suggested_total"] == Decimal("130")
     assert all(r["conditional_on_future_income"] for r in conditional["suggestions"])
     assert rows == original
@@ -67,8 +64,12 @@ def test_negative_global_headroom_cannot_create_funded_transfer() -> None:
 
 def test_missing_wallet_never_uses_other_envelopes_as_source() -> None:
     result = envelope_allocation_preview(
-        {"items": [envelope("a", "Essenciais", "50", "50"),
-                   envelope("b", "Não Essenciais", "-40", "-40")]},
+        {
+            "items": [
+                envelope("a", "Essenciais", "50", "50"),
+                envelope("b", "Não Essenciais", "-40", "-40"),
+            ]
+        },
         {
             "available_without_future_income": Decimal("100"),
             "forecast_after_expected_income": Decimal("200"),
@@ -79,9 +80,7 @@ def test_missing_wallet_never_uses_other_envelopes_as_source() -> None:
 
 
 def test_monthly_dashboard_allocation_preview_never_writes(client: TestClient) -> None:
-    wallet = client.post(
-        "/api/v1/accounts", json={"name": "Carteira", "opening_balance": "200"}
-    )
+    wallet = client.post("/api/v1/accounts", json={"name": "Carteira", "opening_balance": "200"})
     essentials = client.post(
         "/api/v1/accounts", json={"name": "Essenciais", "opening_balance": "0"}
     )
