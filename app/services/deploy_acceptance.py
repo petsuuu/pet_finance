@@ -45,6 +45,7 @@ def acceptance_report(source: ReadOnlyHttpAdapter, *, expected_service: str) -> 
         and isinstance(main_sha, str)
         and len(main_sha) == 40
         and deploy.get("status") == "live"
+        and main_sha == deploy.get("commit", {}).get("id")
         and plugin.get("read_only") is True
         and plugin.get("version") == "0.4.0"
         and snapshot.get("schema_version") == 2
