@@ -8,7 +8,10 @@ from fastapi.testclient import TestClient
 from app.services.post_salary_alerts import post_salary_envelope_alerts
 
 
-def reports(received: str, pending: str, salary: bool = True) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+Report = dict[str, Any]
+
+
+def reports(received: str, pending: str, salary: bool = True) -> tuple[Report, Report, Report]:
     return (
         {
             "recurring_income_checks": [
