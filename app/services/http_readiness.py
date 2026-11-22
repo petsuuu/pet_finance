@@ -15,12 +15,15 @@ TIMEOUT = 15
 
 
 class NoRedirect(HTTPRedirectHandler):
-    def redirect_request(self, req: Request, fp: Any, code: int, msg: str,
-                         headers: Any, newurl: str) -> None:
+    def redirect_request(
+        self, req: Request, fp: Any, code: int, msg: str, headers: Any, newurl: str
+    ) -> None:
         return None
 
 
-def probe(path: str, *, method: str = "GET", body: bytes | None = None) -> tuple[int, dict[str, Any], dict[str, str]]:
+def probe(
+    path: str, *, method: str = "GET", body: bytes | None = None
+) -> tuple[int, dict[str, Any], dict[str, str]]:
     """Connect exclusively to the pinned service, without following redirects."""
     if path not in {
         "/health",
@@ -35,7 +38,10 @@ def probe(path: str, *, method: str = "GET", body: bytes | None = None) -> tuple
         ORIGIN + path,
         data=body,
         method=method,
-        headers={"Content-Type": "application/json", "Accept": "application/json, text/event-stream"},
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+        },
     )
     try:
         response = build_opener(NoRedirect()).open(req, timeout=TIMEOUT)
@@ -55,7 +61,9 @@ def probe(path: str, *, method: str = "GET", body: bytes | None = None) -> tuple
 def assess(results: dict[str, tuple[int, dict[str, Any], dict[str, str]]]) -> list[str]:
     """Return failures; absence of a failure is not authenticated acceptance."""
     failures: list[str] = []
-    health, auth, resource, denied = (results[key] for key in ("health", "auth", "resource", "denied"))
+    health, auth, resource, denied = (
+        results[key] for key in ("health", "auth", "resource", "denied")
+    )
     if health[0] != 200 or health[1].get("status") != "ok":
         failures.append("health")
     metadata = auth[1]
@@ -99,7 +107,10 @@ def main() -> int:
         print("NO-GO: " + ", ".join(failures))
         return 1
     print("PASS: public HTTP/OAuth and unauthenticated MCP rejection only")
-    print("NOT VERIFIED: authenticated HTTP/MCP access, new MCP tools, financial integrity or deploy")
+    print(
+        "NOT VERIFIED: authenticated HTTP/MCP access, new MCP tools, "
+        "financial integrity or deploy"
+    )
     return 0
 
 
