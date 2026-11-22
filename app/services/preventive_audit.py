@@ -78,3 +78,41 @@ def similar_description_duplicates(
                     }
                 )
     return sorted(findings, key=lambda item: (item["date"], item["transaction_ids"]))
+
+
+def pending_reference_findings(
+    transactions: list[dict[str, Any]],
+    accounts: list[dict[str, Any]],
+    rules: dict[Any, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Flag invalid references only for active pending obligations.
+
+    Historical POSTED/CANCELLED records are intentionally ignored.
+    """
+    account_by_id = {row["id"]: row for row in accounts}
+    findings: list[dict[str, Any]] = []
+    for movement in transactions:
+        if movement["status"] != "PENDING":
+            continue
+        account_id = movement.get("account_id")
+        account = account_by_id.get(account_id)
+        if account is None or not account["active"]:
+            findings.append(
+                {
+                    "transaction_id": str(movement["id"]),
+                    "reference_id": None if account_id is None else str(account_id),
+                    "reason": "missing_or_inactive_pending_account",
+                    "requires_review": True,
+                }
+            )
+        rule_id = movement.get("recurrence_id")
+        if rule_id is not None and rule_id not in rules:
+            findings.append(
+                {
+                    "transaction_id": str(movement["id"]),
+                    "reference_id": str(rule_id),
+                    "reason": "missing_or_archived_pending_recurrence",
+                    "requires_review": True,
+                }
+            )
+    return sorted(findings, key=lambda item: (item["transaction_id"], item["reason"]))

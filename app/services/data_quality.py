@@ -17,8 +17,11 @@ def data_quality_dashboard(service: Ledger, *, limit: int = 100) -> dict[str, An
     recurrence_count = summary["recurrence_account_mismatches"]
     classification_count = summary.get("classification_findings", 0)
     similar_count = summary.get("similar_duplicate_pairs", 0)
+    reference_count = summary.get("pending_reference_findings", 0)
 
-    review_count = duplicate_count + recurrence_count + classification_count + similar_count
+    review_count = (
+        duplicate_count + recurrence_count + classification_count + similar_count + reference_count
+    )
     status = "CRITICAL" if balance_count else ("REVIEW" if review_count else "OK")
     sections = [
         {
@@ -61,6 +64,15 @@ def data_quality_dashboard(service: Ledger, *, limit: int = 100) -> dict[str, An
             "truncated": audit["truncated"].get("classification_findings", False),
         },
         {
+            "id": "pending_references",
+            "title": "Referências de pendências",
+            "severity": "REVIEW" if reference_count else "OK",
+            "count": reference_count,
+            "description": "Pendências com conta inativa ou recorrência ausente/arquivada.",
+            "items": audit.get("pending_reference_findings", []),
+            "truncated": audit["truncated"].get("pending_reference_findings", False),
+        },
+        {
             "id": "similar_duplicates",
             "title": "Descrições semelhantes",
             "severity": "REVIEW" if similar_count else "OK",
@@ -80,6 +92,7 @@ def data_quality_dashboard(service: Ledger, *, limit: int = 100) -> dict[str, An
             "recurrence_account_mismatches": recurrence_count,
             "classification_findings": classification_count,
             "similar_duplicate_pairs": similar_count,
+            "pending_reference_findings": reference_count,
             "total_findings": balance_count + review_count,
         },
         "sections": sections,
