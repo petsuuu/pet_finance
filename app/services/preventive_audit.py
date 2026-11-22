@@ -151,6 +151,7 @@ def pending_recurrence_duplicate_groups(
         )
     return sorted(findings, key=lambda row: (row["month"], row["recurrence_id"]))
 
+
 def settled_pending_recurrence_overlaps(
     transactions: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
