@@ -1,3 +1,24 @@
+## Versionamento do plugin Pet Finance MCP
+
+A versão do conector é a versão do pacote `pet-finance` definida em
+`pyproject.toml` (atualmente candidata: **0.2.0** na PR #49). Ela pode ser
+consultada por OAuth via a ferramenta somente leitura `plugin_info`, e é
+anunciada em `serverInfo.version` no handshake MCP.
+
+Adote [Versionamento Semântico](https://semver.org/lang/pt-BR/):
+correções compatíveis usam **PATCH**; novas ferramentas/campos compatíveis usam
+**MINOR**; alterações incompatíveis usam **MAJOR**, após plano de migração
+aprovado. Sempre atualizar `pyproject.toml`, `CHANGELOG.md` e testes de
+compatibilidade quando o conector MCP for atualizado. A versão do pacote
+`mcp` (SDK) é distinta da versão do plugin Pet Finance: o SDK permanece
+fixado em `1.30.0` nesta evolução.
+
+**Segurança de release:** a criação ou aprovação da PR não publica uma
+versão. Manter Auto-Deploy desligado; merge e deploy exigem autorizações
+separadas. Após deploy autorizado, conferir o `plugin_info` instalado, a
+integridade de todos os saldos, lançamentos ativos/arquivados e histórico
+de auditoria; somente depois planejar a tag/release da versão.
+
 ## Dashboard de qualidade dos dados (somente leitura)
 
 O mesmo diagnóstico pode ser consultado diretamente no ChatGPT por meio da ferramenta MCP `data_quality_dashboard(limit=100)`, com autenticação OAuth e sinalização explícita de operação somente leitura. Ela utiliza o mesmo endpoint e não altera saldos, históricos, contas ou recorrências. A função fica disponível no conector após novo deploy autorizado.
