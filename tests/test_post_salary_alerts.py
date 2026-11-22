@@ -92,12 +92,8 @@ def test_no_funded_suggestions_even_after_salary_stays_review_only() -> None:
 
 
 def test_dashboard_alerts_do_not_mutate_financial_records(client: TestClient) -> None:
-    account = client.post(
-        "/api/v1/accounts", json={"name": "Carteira", "opening_balance": "200"}
-    )
-    essential = client.post(
-        "/api/v1/accounts", json={"name": "Essenciais", "opening_balance": "0"}
-    )
+    account = client.post("/api/v1/accounts", json={"name": "Carteira", "opening_balance": "200"})
+    essential = client.post("/api/v1/accounts", json={"name": "Essenciais", "opening_balance": "0"})
     assert account.status_code == 201 and essential.status_code == 201
     recurrence = client.post(
         "/api/v1/recurrences",
