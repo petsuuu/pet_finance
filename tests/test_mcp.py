@@ -221,28 +221,21 @@ def test_mcp_get_queries_do_not_leak_internal_rest(
     ).json()
 
     for name, arguments, path, required in queries:
-        result = rpc(
-            mcp_client, token, "tools/call", {"name": name, "arguments": arguments}
-        )
+        result = rpc(mcp_client, token, "tools/call", {"name": name, "arguments": arguments})
         assert result.status_code == 200, result.text
         assert not result.json()["result"].get("isError"), (name, result.text)
         assert path in seen
         assert "rest" not in seen[path]
         for key, value in required.items():
             assert seen[path][key] == value
-        assert not (set(seen[path]) - set(required) - {
-            "start_date", "end_date", "search", "status",
-        })
+        assert set(seen[path]).issubset(
+            set(required) | {"start_date", "end_date", "search", "status"}
+        )
 
-    assert mcp_client.get(
-        "/api/v1/accounts", headers={"Authorization": "Bearer test-token"}
-    ).json() == before_accounts
-    assert mcp_client.get(
-        "/api/v1/transactions", headers={"Authorization": "Bearer test-token"}
-    ).json() == before_transactions
-    assert mcp_client.get(
-        "/api/v1/audit/transactions", headers={"Authorization": "Bearer test-token"}
-    ).json() == before_history
+    headers = {"Authorization": "Bearer test-token"}
+    assert mcp_client.get("/api/v1/accounts", headers=headers).json() == before_accounts
+    assert mcp_client.get("/api/v1/transactions", headers=headers).json() == before_transactions
+    assert mcp_client.get("/api/v1/audit/transactions", headers=headers).json() == before_history
 
 
 def test_oauth_discovery_and_authentication_required(mcp_client: TestClient) -> None:
