@@ -380,10 +380,15 @@ def test_predeploy_rejects_forged_or_missing_approval(tmp_path: Path) -> None:
     from app.services.deploy_orchestrator import prepare_predeploy
 
     data = {
-        "service_id": "srv-test", "commit": SHA, "plugin_version": "0.4.0",
-        "authorization_id": AUTHORIZATION, "execution_id": EXECUTION,
-        "approval_verifier": VERIFIER, "vault_dir": tmp_path / "private",
-        "encryption_key": key, "now": NOW,
+        "service_id": "srv-test",
+        "commit": SHA,
+        "plugin_version": "0.4.0",
+        "authorization_id": AUTHORIZATION,
+        "execution_id": EXECUTION,
+        "approval_verifier": VERIFIER,
+        "vault_dir": tmp_path / "private",
+        "encryption_key": key,
+        "now": NOW,
     }
     result = prepare_predeploy(source, approval_receipt=forged, **data)
     assert result["issues"] == ["AUTHORIZATION_NOT_VERIFIED"]
@@ -396,9 +401,15 @@ def test_postdeploy_rejects_expired_external_approval(tmp_path: Path) -> None:
     key = Fernet.generate_key()
     file = Path(preflight(source, tmp_path / "private", key)["evidence_file"])
     result = verify_postdeploy(
-        source, evidence_file=file, encryption_key=key,
-        service_id="srv-test", commit=SHA, plugin_version="0.4.0",
-        authorization_id=AUTHORIZATION, execution_id=EXECUTION,
-        approval_verifier=VERIFIER, now=NOW + timedelta(hours=1, minutes=1),
+        source,
+        evidence_file=file,
+        encryption_key=key,
+        service_id="srv-test",
+        commit=SHA,
+        plugin_version="0.4.0",
+        authorization_id=AUTHORIZATION,
+        execution_id=EXECUTION,
+        approval_verifier=VERIFIER,
+        now=NOW + timedelta(hours=1, minutes=1),
     )
     assert result["issues"] == ["AUTHORIZATION_NOT_VERIFIED"]
