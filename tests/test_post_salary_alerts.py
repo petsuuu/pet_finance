@@ -121,6 +121,60 @@ def test_salary_timing_ignores_unrelated_income_and_missing_reference_date() -> 
     assert unknown_date["salary"]["overdue_days"] is None
 
 
+def test_follow_up_prioritizes_safe_salary_checks_by_due_date() -> None:
+    waiting = post_salary_envelope_alerts(*reports("0", "900"), as_of=date(2026, 11, 20))
+    assert waiting["follow_up"]["level"] == "INFO"
+    assert waiting["follow_up"]["action"] == "WAIT_FOR_SALARY"
+
+    upcoming = post_salary_envelope_alerts(*reports("0", "900"), as_of=date(2026, 11, 22))
+    assert upcoming["follow_up"]["level"] == "UPCOMING"
+    assert upcoming["follow_up"]["action"] == "CHECK_UPCOMING_SALARY"
+    assert upcoming["follow_up"]["read_only"] is True
+    assert upcoming["follow_up"]["requires_user_confirmation"] is True
+    assert upcoming["review_gate"] == "AWAIT_SALARY_CONFIRMATION"
+
+    due_today = post_salary_envelope_alerts(*reports("0", "900"), as_of=date(2026, 11, 25))
+    assert due_today["follow_up"]["action"] == "CHECK_UPCOMING_SALARY"
+
+    overdue = post_salary_envelope_alerts(*reports("0", "900"), as_of=date(2026, 11, 27))
+    assert overdue["follow_up"]["level"] == "ATTENTION"
+    assert overdue["follow_up"]["action"] == "VERIFY_OVERDUE_SALARY"
+    assert overdue["salary"]["bank_deposit_verified"] is False
+    assert overdue["review_gate"] == "AWAIT_SALARY_CONFIRMATION"
+
+
+def test_follow_up_distinguishes_partial_full_and_unknown_salary() -> None:
+    partial = post_salary_envelope_alerts(*reports("200", "700"), as_of=date(2026, 11, 20))
+    assert partial["follow_up"]["action"] == "RECONCILE_PARTIAL_SALARY"
+    assert partial["review_gate"] == "REVIEW_PARTIAL_RECEIPT"
+
+    partial_overdue = post_salary_envelope_alerts(
+        *reports("200", "700"), as_of=date(2026, 11, 27)
+    )
+    assert partial_overdue["follow_up"]["action"] == "VERIFY_OVERDUE_SALARY"
+
+    fully_recorded = post_salary_envelope_alerts(
+        *reports("1000", "0"), as_of=date(2026, 11, 27)
+    )
+    assert fully_recorded["follow_up"]["action"] == "REVIEW_ENVELOPE_SUGGESTIONS"
+    assert fully_recorded["salary"]["bank_deposit_verified"] is False
+    assert fully_recorded["follow_up"]["read_only"] is True
+
+    income, envelope, allocations = reports("1000", "0")
+    allocations["recorded_cash_scenario"]["suggested_total"] = Decimal("0")
+    no_cash_to_review = post_salary_envelope_alerts(
+        income, envelope, allocations, as_of=date(2026, 11, 27)
+    )
+    assert no_cash_to_review["follow_up"]["action"] == "REVIEW_RECORDED_SALARY"
+
+    unidentified = post_salary_envelope_alerts(
+        *reports("0", "0", salary=False), as_of=date(2026, 11, 27)
+    )
+    assert unidentified["follow_up"]["action"] == "VERIFY_SALARY_RECURRENCE"
+    assert unidentified["follow_up"]["level"] == "REVIEW"
+    assert unidentified["review_gate"] == "AWAIT_SALARY_CONFIRMATION"
+
+
 def test_unrelated_income_does_not_count_as_salary() -> None:
     data = post_salary_envelope_alerts(*reports("1000", "0", salary=False))
     assert data["salary"]["state"] == "SALARY_RULE_NOT_IDENTIFIED"
@@ -180,6 +234,8 @@ def test_dashboard_alerts_do_not_mutate_financial_records(client: TestClient) ->
     assert data["salary"]["earliest_outstanding_due_date"] == "2026-11-25"
     assert data["salary"]["days_until_due"] == 3
     assert data["salary"]["receipt_overdue"] is False
+    assert data["follow_up"]["action"] == "CHECK_UPCOMING_SALARY"
+    assert data["follow_up"]["read_only"] is True
     assert data["shortfall_alert_count"] == 1
     assert data["alerts"][0]["envelope"] == "Essenciais"
     assert client.get("/api/v1/accounts").json() == before_accounts
