@@ -10,6 +10,7 @@ from app.schemas.inputs import Money
 from app.services.budgets import budget_usage
 from app.services.cashflow import daily_cashflow
 from app.services.comparison import category_comparison
+from app.services.envelope_allocation import envelope_allocation_preview
 from app.services.ledger import Ledger
 from app.services.monthly_planning import (
     envelope_projections,
@@ -125,6 +126,7 @@ def monthly_dashboard(
         "income_reconciliation": income_status,
         "monthly_planning": plan_status,
         "envelope_projections": envelopes,
+        "envelope_allocation_preview": envelope_allocation_preview(envelopes, plan_status),
         "safety_margin": safety_margin,
         "free_after_commitments": balance - commitments - safety_margin,
         "forecast_closing_balance": balance + expected_income - commitments,
