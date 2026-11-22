@@ -1,13 +1,14 @@
 """Regression tests: salary-based alerts do not move any money."""
 
 from decimal import Decimal
+from typing import Any
 
 from fastapi.testclient import TestClient
 
 from app.services.post_salary_alerts import post_salary_envelope_alerts
 
 
-def reports(received: str, pending: str, salary: bool = True) -> tuple[dict, dict, dict]:
+def reports(received: str, pending: str, salary: bool = True) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     return (
         {
             "recurring_income_checks": [
