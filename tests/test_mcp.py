@@ -1,8 +1,11 @@
 import base64
 import hashlib
 import re
+import tomllib
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
+from importlib.metadata import version as package_version
+from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlsplit
 
@@ -98,6 +101,59 @@ def rpc(client: TestClient, token: str, method: str, params: dict[str, Any]) -> 
         },
         json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params},
     )
+
+
+def test_mcp_plugin_version_is_semver_traceable_and_read_only(
+    mcp_client: TestClient,
+) -> None:
+    project_root = Path(__file__).resolve().parents[1]
+    package = tomllib.loads((project_root / "pyproject.toml").read_text())
+    expected = package["project"]["version"]
+    assert re.fullmatch(r"[0-9]+\\.[0-9]+\\.[0-9]+", expected)
+    assert package_version("pet-finance") == expected
+    assert f"## [{expected}]" in (project_root / "CHANGELOG.md").read_text()
+
+    identity, code = grant(mcp_client)
+    token = exchange(mcp_client, identity, code).json()["access_token"]
+    initialized = rpc(
+        mcp_client,
+        token,
+        "initialize",
+        {
+            "protocolVersion": "2025-11-25",
+            "capabilities": {},
+            "clientInfo": {"name": "version-check", "version": "1"},
+        },
+    )
+    assert initialized.status_code == 200, initialized.text
+    assert initialized.json()["result"]["serverInfo"]["version"] == expected
+
+    tools = rpc(mcp_client, token, "tools/list", {}).json()["result"]["tools"]
+    info = next(tool for tool in tools if tool["name"] == "plugin_info")
+    assert info["annotations"]["readOnlyHint"] is True
+    assert info["_meta"]["securitySchemes"][0]["type"] == "oauth2"
+
+    headers = {"Authorization": "Bearer test-token"}
+    before_accounts = mcp_client.get("/api/v1/accounts", headers=headers).json()
+    before_transactions = mcp_client.get("/api/v1/transactions", headers=headers).json()
+    before_audit = mcp_client.get("/api/v1/audit/transactions", headers=headers).json()
+
+    response = rpc(
+        mcp_client, token, "tools/call", {"name": "plugin_info", "arguments": {}}
+    )
+    assert response.status_code == 200, response.text
+    result = response.json()["result"]
+    assert not result.get("isError"), result
+    assert result["structuredContent"] == {
+        "name": "Pet Finance",
+        "version": expected,
+        "api_version": "v1",
+        "versioning": "semver",
+        "read_only": True,
+    }
+    assert mcp_client.get("/api/v1/accounts", headers=headers).json() == before_accounts
+    assert mcp_client.get("/api/v1/transactions", headers=headers).json() == before_transactions
+    assert mcp_client.get("/api/v1/audit/transactions", headers=headers).json() == before_audit
 
 
 def test_oauth_discovery_and_authentication_required(mcp_client: TestClient) -> None:
