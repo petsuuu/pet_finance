@@ -203,7 +203,7 @@ def test_postflight_stops_on_archive_drift_and_wrong_live_commit(tmp_path: Path)
     assert report["status"] == "BLOCKED"
     assert report["changed_sections"] == ["transactions_archived"]
     source.drift = False
-    source.deployment["commit"]["id"] = "b" * 40
+    source.deployment["commit"] = {"id": "b" * 40}
     assert "LIVE_COMMIT_MISMATCH" in postflight(source, file, key)["issues"]
 
 
