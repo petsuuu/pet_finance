@@ -46,11 +46,18 @@ def test_adapter_uses_exact_hosts_methods_and_allowed_tools() -> None:
         body = __import__("json").loads(request.content)
         if body["method"] == "initialize":
             assert body["params"]["protocolVersion"] == "2025-06-18"
-            return httpx.Response(200, json={
-                "jsonrpc": "2.0", "id": 1,
-                "result": {"protocolVersion": "2025-06-18", "capabilities": {},
-                           "serverInfo": {"name": "Pet Finance", "version": "0.4.0"}},
-            })
+            return httpx.Response(
+                200,
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "result": {
+                        "protocolVersion": "2025-06-18",
+                        "capabilities": {},
+                        "serverInfo": {"name": "Pet Finance", "version": "0.4.0"},
+                    },
+                },
+            )
         if body["method"] == "notifications/initialized":
             return httpx.Response(202)
         assert body["method"] == "tools/call"
@@ -134,7 +141,8 @@ def test_adapter_does_not_follow_redirects() -> None:
 def test_origin_mismatch_rejected_before_any_network_call() -> None:
     with pytest.raises(ValueError, match="INVALID_READ_ONLY_ADAPTER_CONFIGURATION"):
         ReadOnlyHttpAdapter(
-            repo="petsuuu/pet_finance", service_id="srv-test123",
+            repo="petsuuu/pet_finance",
+            service_id="srv-test123",
             render_token="render-secret",
             mcp_url="https://not-the-authorized-host.example/mcp",
             trusted_mcp_origin="https://pet-finance.example",
@@ -144,10 +152,14 @@ def test_origin_mismatch_rejected_before_any_network_call() -> None:
 
 def test_mcp_handshake_rejects_wrong_protocol() -> None:
     def reply(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={
-            "jsonrpc": "2.0", "id": 1,
-            "result": {"protocolVersion": "2025-03-26", "capabilities": {}},
-        })
+        return httpx.Response(
+            200,
+            json={
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {"protocolVersion": "2025-03-26", "capabilities": {}},
+            },
+        )
 
     with pytest.raises(ValueError, match="MCP_HANDSHAKE_REJECTED"):
         adapter(reply).plugin_info()
@@ -157,16 +169,24 @@ def test_mcp_requires_structured_payload() -> None:
     def reply(request: httpx.Request) -> httpx.Response:
         body = __import__("json").loads(request.content)
         if body["method"] == "initialize":
-            return httpx.Response(200, json={
-                "jsonrpc": "2.0", "id": 1,
-                "result": {"protocolVersion": "2025-06-18", "capabilities": {}},
-            })
+            return httpx.Response(
+                200,
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "result": {"protocolVersion": "2025-06-18", "capabilities": {}},
+                },
+            )
         if body["method"] == "notifications/initialized":
             return httpx.Response(202)
-        return httpx.Response(200, json={
-            "jsonrpc": "2.0", "id": 2,
-            "result": {"isError": False, "content": [{"type": "text", "text": "ok"}]},
-        })
+        return httpx.Response(
+            200,
+            json={
+                "jsonrpc": "2.0",
+                "id": 2,
+                "result": {"isError": False, "content": [{"type": "text", "text": "ok"}]},
+            },
+        )
 
     with pytest.raises(ValueError, match="MCP_STRUCTURED_RESULT_REQUIRED"):
         adapter(reply).plugin_info()
