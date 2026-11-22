@@ -10,7 +10,8 @@ PRIORITY = {"Essenciais": 0, "Não Essenciais": 1}
 
 def _is_salary(description: str) -> bool:
     normalized = "".join(
-        char for char in unicodedata.normalize("NFKD", description.casefold())
+        char
+        for char in unicodedata.normalize("NFKD", description.casefold())
         if not unicodedata.combining(char)
     )
     return "salario" in normalized
@@ -27,7 +28,8 @@ def post_salary_envelope_alerts(
     treated as salary evidence. Other posted income cannot unlock that label.
     """
     salaries = [
-        row for row in income_report["recurring_income_checks"]
+        row
+        for row in income_report["recurring_income_checks"]
         if _is_salary(str(row["description"]))
     ]
     received = sum((Decimal(row["received_amount"]) for row in salaries), ZERO)
@@ -46,8 +48,7 @@ def post_salary_envelope_alerts(
     current = allocation_report["recorded_cash_scenario"]
     conditional = allocation_report["conditional_expected_income_scenario"]
     current_gaps = {
-        row["account_id"]: Decimal(row["remaining_gap"])
-        for row in current["unfunded_envelopes"]
+        row["account_id"]: Decimal(row["remaining_gap"]) for row in current["unfunded_envelopes"]
     }
     conditional_gaps = {
         row["account_id"]: Decimal(row["remaining_gap"])
