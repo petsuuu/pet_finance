@@ -243,18 +243,28 @@ def test_bound_authorization_execution_and_baseline_freshness(tmp_path: Path) ->
     key = Fernet.generate_key()
     file = Path(preflight(source, tmp_path / "private", key)["evidence_file"])
     invalid_auth = verify_postdeploy(
-        source, evidence_file=file, encryption_key=key, service_id="srv-test",
-        commit=SHA, plugin_version="0.4.0",
+        source,
+        evidence_file=file,
+        encryption_key=key,
+        service_id="srv-test",
+        commit=SHA,
+        plugin_version="0.4.0",
         authorization_id="another-approval-reference",
-        execution_id=EXECUTION, now=NOW + timedelta(minutes=1),
+        execution_id=EXECUTION,
+        now=NOW + timedelta(minutes=1),
     )
     assert invalid_auth["status"] == "BLOCKED"
     assert invalid_auth["issues"] == ["EVIDENCE_BINDING_MISMATCH"]
     expired = verify_postdeploy(
-        source, evidence_file=file, encryption_key=key, service_id="srv-test",
-        commit=SHA, plugin_version="0.4.0",
+        source,
+        evidence_file=file,
+        encryption_key=key,
+        service_id="srv-test",
+        commit=SHA,
+        plugin_version="0.4.0",
         authorization_id=AUTHORIZATION,
-        execution_id=EXECUTION, now=NOW + timedelta(hours=3),
+        execution_id=EXECUTION,
+        now=NOW + timedelta(hours=3),
     )
     assert expired["issues"] == ["EXPIRED_BASELINE"]
     source.snapshot["captured_at"] = (NOW - timedelta(minutes=6)).isoformat()
