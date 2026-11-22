@@ -52,4 +52,4 @@ def test_public_preflight_rejects_unapproved_paths_and_post_operations() -> None
     with pytest.raises(ValueError, match="unapproved probe path"):
         probe("/api/v1/transactions")
     with pytest.raises(ValueError, match="POST allowed only"):
-        probe("/oauth/token", method="POST")
+        probe("/health", method="POST")
