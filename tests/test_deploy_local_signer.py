@@ -66,15 +66,21 @@ def test_local_keychain_approval_and_verification() -> None:
     )
     assert not verifier.verify(
         receipt,
-        service_id="srv-other999", commit=SHA, plugin_version="0.4.0",
+        service_id="srv-other999",
+        commit=SHA,
+        plugin_version="0.4.0",
         authorization_id="approval-20261122-01",
-        execution_id="execution-20261122-01", at=NOW,
+        execution_id="execution-20261122-01",
+        at=NOW,
     )
     assert not verifier.verify(
         receipt,
-        service_id="srv-example123", commit=SHA, plugin_version="0.4.0",
+        service_id="srv-example123",
+        commit=SHA,
+        plugin_version="0.4.0",
         authorization_id="approval-20261122-01",
-        execution_id="execution-20261122-01", at=NOW + timedelta(minutes=31),
+        execution_id="execution-20261122-01",
+        at=NOW + timedelta(minutes=31),
     )
 
 
