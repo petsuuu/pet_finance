@@ -7,7 +7,6 @@ from fastapi.testclient import TestClient
 
 from app.services.post_salary_alerts import post_salary_envelope_alerts
 
-
 Report = dict[str, Any]
 
 
