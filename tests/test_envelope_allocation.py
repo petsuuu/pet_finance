@@ -61,7 +61,8 @@ def test_negative_global_headroom_cannot_create_funded_transfer() -> None:
     )
     assert result["recorded_cash_scenario"]["suggestions"] == []
     assert result["conditional_expected_income_scenario"]["suggestions"] == []
-    assert result["recorded_cash_scenario"]["unfunded_envelopes"][0]["remaining_gap"] == Decimal("100")
+    gap = result["recorded_cash_scenario"]["unfunded_envelopes"][0]["remaining_gap"]
+    assert gap == Decimal("100")
 
 
 def test_missing_wallet_never_uses_other_envelopes_as_source() -> None:
