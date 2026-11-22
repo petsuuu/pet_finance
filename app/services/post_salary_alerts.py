@@ -18,6 +18,47 @@ def _is_salary(description: str) -> bool:
     return "salario" in normalized
 
 
+def _salary_follow_up(
+    salary_state: str, days_until_due: int | None, review_gate: str
+) -> dict[str, Any]:
+    """Select one read-only next step; never infer bank settlement from a due date."""
+    if salary_state == "SALARY_RULE_NOT_IDENTIFIED":
+        level = "REVIEW"
+        action = "VERIFY_SALARY_RECURRENCE"
+        reason = "No identifiable salary recurrence is available for confirmation."
+    elif salary_state == "SALARY_RECORDED":
+        level = "REVIEW"
+        action = (
+            "REVIEW_ENVELOPE_SUGGESTIONS"
+            if review_gate == "REVIEW_RECORDED_CASH"
+            else "REVIEW_RECORDED_SALARY"
+        )
+        reason = "Salary is recorded in the ledger, but bank settlement is not verified."
+    elif days_until_due is not None and days_until_due < 0:
+        level = "ATTENTION"
+        action = "VERIFY_OVERDUE_SALARY"
+        reason = "The scheduled date passed with salary not fully recorded."
+    elif salary_state == "PARTIALLY_RECORDED":
+        level = "ATTENTION"
+        action = "RECONCILE_PARTIAL_SALARY"
+        reason = "Only part of the expected salary is recorded."
+    elif days_until_due is not None and days_until_due <= 3:
+        level = "UPCOMING"
+        action = "CHECK_UPCOMING_SALARY"
+        reason = "The scheduled salary date is within the next three calendar days."
+    else:
+        level = "INFO"
+        action = "WAIT_FOR_SALARY"
+        reason = "Do not treat pending or forecast salary as available cash."
+    return {
+        "level": level,
+        "action": action,
+        "reason": reason,
+        "requires_user_confirmation": True,
+        "read_only": True,
+    }
+
+
 def post_salary_envelope_alerts(
     income_report: dict[str, Any],
     envelope_report: dict[str, Any],
@@ -98,6 +139,15 @@ def post_salary_envelope_alerts(
         )
 
     recorded_total = Decimal(current["suggested_total"])
+    review_gate = (
+        "REVIEW_RECORDED_CASH"
+        if salary_state == "SALARY_RECORDED" and recorded_total > ZERO
+        else "REVIEW_PARTIAL_RECEIPT"
+        if salary_state == "PARTIALLY_RECORDED"
+        else "REVIEW_SHORTFALLS"
+        if salary_state == "SALARY_RECORDED"
+        else "AWAIT_SALARY_CONFIRMATION"
+    )
     return {
         "salary": {
             "state": salary_state,
@@ -121,20 +171,14 @@ def post_salary_envelope_alerts(
             (row["shortfall_after_conditional_suggestions"] for row in alerts), ZERO
         ),
         "recorded_cash_suggestions_available": recorded_total > ZERO,
-        "review_gate": (
-            "REVIEW_RECORDED_CASH"
-            if salary_state == "SALARY_RECORDED" and recorded_total > ZERO
-            else "REVIEW_PARTIAL_RECEIPT"
-            if salary_state == "PARTIALLY_RECORDED"
-            else "REVIEW_SHORTFALLS"
-            if salary_state == "SALARY_RECORDED"
-            else "AWAIT_SALARY_CONFIRMATION"
-        ),
+        "review_gate": review_gate,
+        "follow_up": _salary_follow_up(salary_state, days_until_due, review_gate),
         "requires_user_confirmation": True,
         "basis": (
             "Read-only planning alerts. Salary evidence requires eligible posted "
             "income linked to a salary-named recurrence; it does not verify a bank "
-            "deposit. A scheduled salary due date is not proof of receipt. "
+            "deposit. The follow-up is informational and does not initiate "
+            "notifications. A scheduled salary due date is not proof of receipt. "
             "Recorded-cash distribution remains capped by the global "
             "safety and savings plan; conditional income never becomes available "
             "cash. No transfers, payments, balances or transactions are changed."
