@@ -67,7 +67,9 @@ def test_income_receipts_are_distinct_from_promises_and_forecasts() -> None:
     assert result["unrecorded_forecast"] == Decimal("1000")
     assert result["future_dated_posted_not_yet_received"] == Decimal("40")
     assert result["total_expected_not_received"] == Decimal("1500")
-    assert result["recurring_income_checks"][0]["state"] == "RECEIVED"
+    assert result["recurring_income_checks"][0]["state"] == "PARTIALLY_RECEIVED"
+    assert result["recurring_income_checks"][0]["remaining_against_expected"] == Decimal("500")
+    assert result["recurring_income_checks"][0]["remaining_after_recorded_pending"] == Decimal("0")
     assert result["recurring_income_checks"][1]["state"] == "FORECAST_ONLY"
     assert entries == original
 
@@ -153,7 +155,8 @@ def test_monthly_dashboard_is_read_only_and_reconciles_income(client: TestClient
     result = report.json()
     assert result["income_reconciliation"]["received"] == "200.00"
     assert result["income_reconciliation"]["unrecorded_forecast"] == "0"
-    assert result["income_reconciliation"]["recurring_income_checks"][0]["state"] == "RECEIVED"
+    assert result["income_reconciliation"]["recurring_income_checks"][0]["state"] == "PARTIALLY_RECEIVED"
+    assert result["income_reconciliation"]["recurring_income_checks"][0]["remaining_against_expected"] == "800.00"
     assert result["monthly_planning"]["recorded_balance"] == "300.00"
     assert result["monthly_planning"]["available_without_future_income"] == "300.00"
     assert client.get("/api/v1/accounts").json() == accounts_before
