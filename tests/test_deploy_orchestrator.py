@@ -92,7 +92,8 @@ class FakeSources:
                     "before_count": 0,
                     "after_count": 1 if mismatch and name == "transactions_archived" else 0,
                     "before_sha256": EMPTY_HASH,
-                    "after_sha256": "b" * 64 if mismatch and name == "transactions_archived"
+                    "after_sha256": "b" * 64
+                    if mismatch and name == "transactions_archived"
                     else EMPTY_HASH,
                 }
                 for name in SECTION_NAMES
@@ -116,9 +117,7 @@ def preflight(
     )
 
 
-def postflight(
-    source: FakeSources, file: Path, key: bytes, *, commit: str = SHA
-) -> dict[str, Any]:
+def postflight(source: FakeSources, file: Path, key: bytes, *, commit: str = SHA) -> dict[str, Any]:
     return verify_postdeploy(
         source,
         evidence_file=file,
@@ -145,8 +144,14 @@ def test_sealed_evidence_success_and_report(tmp_path: Path) -> None:
     assert after["baseline_hash"] == after["current_hash"]
     assert after["changed_sections"] == []
     assert source.calls == [
-        "render_service", "main_commit", "plugin_info", "financial_snapshot",
-        "render_service", "latest_deployment", "plugin_info", "compare_financial_audit",
+        "render_service",
+        "main_commit",
+        "plugin_info",
+        "financial_snapshot",
+        "render_service",
+        "latest_deployment",
+        "plugin_info",
+        "compare_financial_audit",
     ]
 
 
@@ -155,13 +160,13 @@ def test_sealed_evidence_success_and_report(tmp_path: Path) -> None:
     [
         ("main", "b" * 40),
         ("plugin", {"version": "0.3.0", "read_only": True}),
-        ("service", {"id": "srv-test", "branch": "main", "autoDeploy": "yes",
-                     "autoDeployTrigger": "off"}),
+        (
+            "service",
+            {"id": "srv-test", "branch": "main", "autoDeploy": "yes", "autoDeployTrigger": "off"},
+        ),
     ],
 )
-def test_preflight_blocks_mismatched_evidence(
-    tmp_path: Path, field: str, new_value: Any
-) -> None:
+def test_preflight_blocks_mismatched_evidence(tmp_path: Path, field: str, new_value: Any) -> None:
     source = FakeSources()
     setattr(source, field, new_value)
     report = preflight(source, tmp_path / "private", Fernet.generate_key())
