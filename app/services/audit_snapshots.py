@@ -46,7 +46,9 @@ def _normalize(value: Any) -> Any:
 
 
 def _digest(value: Any) -> str:
-    payload = json.dumps(_normalize(value), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    payload = json.dumps(
+        _normalize(value), sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -122,7 +124,10 @@ def financial_snapshot(service: Ledger) -> dict[str, Any]:
 
 
 def _validate_baseline(baseline: dict[str, Any]) -> None:
-    if baseline.get("schema_version") != SCHEMA_VERSION or baseline.get("hash_algorithm") != "sha256":
+    if (
+        baseline.get("schema_version") != SCHEMA_VERSION
+        or baseline.get("hash_algorithm") != "sha256"
+    ):
         raise HTTPException(422, "Unsupported audit snapshot schema or hash algorithm")
     sections = baseline.get("sections")
     if not isinstance(sections, dict) or set(sections) != set(SECTION_NAMES):
@@ -149,7 +154,9 @@ def _validate_baseline(baseline: dict[str, Any]) -> None:
         raise HTTPException(422, "Baseline fingerprint does not match provided contents")
 
 
-def compare_financial_snapshots(baseline: dict[str, Any], current: dict[str, Any]) -> dict[str, Any]:
+def compare_financial_snapshots(
+    baseline: dict[str, Any], current: dict[str, Any]
+) -> dict[str, Any]:
     """Compare a caller-retained baseline with one fresh, consistent snapshot."""
     _validate_baseline(baseline)
     section_results = [
@@ -166,7 +173,11 @@ def compare_financial_snapshots(baseline: dict[str, Any], current: dict[str, Any
     previous = {row["account_id"]: row for row in baseline["balances"]}
     latest = {row["account_id"]: row for row in current["balances"]}
     changes = [
-        {"account_id": account_id, "before": previous.get(account_id), "after": latest.get(account_id)}
+        {
+            "account_id": account_id,
+            "before": previous.get(account_id),
+            "after": latest.get(account_id),
+        }
         for account_id in sorted(set(previous) | set(latest))
         if previous.get(account_id) != latest.get(account_id)
     ]
