@@ -1,5 +1,6 @@
 """Regression tests: salary-based alerts do not move any money."""
 
+from datetime import date
 from decimal import Decimal
 from typing import Any
 
@@ -17,6 +18,7 @@ def reports(received: str, pending: str, salary: bool = True) -> tuple[Report, R
                 {
                     "description": "Salário mensal" if salary else "Aluguel",
                     "expected_amount": Decimal("1000"),
+                    "due_date": date(2026, 11, 25),
                     "received_amount": Decimal(received),
                     "pending_amount": Decimal(pending),
                 }
@@ -79,6 +81,46 @@ def test_partial_and_fully_recorded_salary_have_distinct_review_gates() -> None:
     assert fully_recorded["requires_user_confirmation"] is True
 
 
+def test_salary_timing_uses_calendar_due_date_without_unlocking_cash() -> None:
+    upcoming = post_salary_envelope_alerts(*reports("0", "900"), as_of=date(2026, 11, 22))
+    upcoming_salary = upcoming["salary"]
+    assert upcoming_salary["earliest_outstanding_due_date"] == date(2026, 11, 25)
+    assert upcoming_salary["days_until_due"] == 3
+    assert upcoming_salary["receipt_overdue"] is False
+    assert upcoming_salary["overdue_days"] == 0
+    assert upcoming["review_gate"] == "AWAIT_SALARY_CONFIRMATION"
+
+    overdue = post_salary_envelope_alerts(*reports("0", "900"), as_of=date(2026, 11, 27))
+    assert overdue["salary"]["receipt_overdue"] is True
+    assert overdue["salary"]["days_until_due"] == -2
+    assert overdue["salary"]["overdue_days"] == 2
+    assert overdue["salary"]["recorded_received"] == Decimal("0")
+    assert overdue["review_gate"] == "AWAIT_SALARY_CONFIRMATION"
+
+    partial = post_salary_envelope_alerts(*reports("200", "700"), as_of=date(2026, 11, 26))
+    assert partial["salary"]["receipt_overdue"] is True
+    assert partial["salary"]["overdue_days"] == 1
+    assert partial["review_gate"] == "REVIEW_PARTIAL_RECEIPT"
+
+    complete = post_salary_envelope_alerts(*reports("1000", "0"), as_of=date(2026, 11, 26))
+    assert complete["salary"]["earliest_outstanding_due_date"] is None
+    assert complete["salary"]["days_until_due"] is None
+    assert complete["salary"]["receipt_overdue"] is False
+
+
+def test_salary_timing_ignores_unrelated_income_and_missing_reference_date() -> None:
+    unrelated = post_salary_envelope_alerts(
+        *reports("1000", "0", salary=False), as_of=date(2026, 11, 30)
+    )
+    assert unrelated["salary"]["earliest_outstanding_due_date"] is None
+    assert unrelated["salary"]["receipt_overdue"] is False
+
+    unknown_date = post_salary_envelope_alerts(*reports("0", "900"))
+    assert unknown_date["salary"]["earliest_outstanding_due_date"] == date(2026, 11, 25)
+    assert unknown_date["salary"]["days_until_due"] is None
+    assert unknown_date["salary"]["overdue_days"] is None
+
+
 def test_unrelated_income_does_not_count_as_salary() -> None:
     data = post_salary_envelope_alerts(*reports("1000", "0", salary=False))
     assert data["salary"]["state"] == "SALARY_RULE_NOT_IDENTIFIED"
@@ -135,6 +177,9 @@ def test_dashboard_alerts_do_not_mutate_financial_records(client: TestClient) ->
     assert data["salary"]["state"] == "AWAITING_RECEIPT"
     assert data["salary"]["recorded_received"] == "0"
     assert data["salary"]["bank_deposit_verified"] is False
+    assert data["salary"]["earliest_outstanding_due_date"] == "2026-11-25"
+    assert data["salary"]["days_until_due"] == 3
+    assert data["salary"]["receipt_overdue"] is False
     assert data["shortfall_alert_count"] == 1
     assert data["alerts"][0]["envelope"] == "Essenciais"
     assert client.get("/api/v1/accounts").json() == before_accounts
