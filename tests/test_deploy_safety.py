@@ -10,17 +10,18 @@ from app.services.audit_snapshots import SECTION_NAMES, _digest
 from app.services.deploy_safety import check_postdeploy, check_predeploy
 
 COMMIT = "a" * 40
-SERVICE = {"id": "srv-test", "branch": "main", "autoDeploy": "no",
-           "autoDeployTrigger": "off"}
+SERVICE = {"id": "srv-test", "branch": "main", "autoDeploy": "no", "autoDeployTrigger": "off"}
 PLUGIN = {"version": "0.4.0", "read_only": True}
 EMPTY_HASH = _digest([])
 
 
 def snapshot() -> dict[str, Any]:
     sections = {
-        name: {"count": 0, "sha256": EMPTY_HASH,
-               "buckets": {str(i): {"count": 0, "sha256": EMPTY_HASH}
-                           for i in range(16)}}
+        name: {
+            "count": 0,
+            "sha256": EMPTY_HASH,
+            "buckets": {str(i): {"count": 0, "sha256": EMPTY_HASH} for i in range(16)},
+        }
         for name in SECTION_NAMES
     }
     core: dict[str, Any] = {
@@ -61,14 +62,22 @@ def after_args() -> dict[str, Any]:
         "plugin_info": deepcopy(PLUGIN),
         "baseline": base,
         "comparison": {
-            "status": "MATCH", "matches": True, "requires_user_review": False,
+            "status": "MATCH",
+            "matches": True,
+            "requires_user_review": False,
             "read_only": True,
             "before_hash": base["snapshot_hash"],
             "after_hash": base["snapshot_hash"],
             "sections": [
-                {"section": name, "matches": True, "changed_buckets": [],
-                 "before_count": 0, "after_count": 0,
-                 "before_sha256": EMPTY_HASH, "after_sha256": EMPTY_HASH}
+                {
+                    "section": name,
+                    "matches": True,
+                    "changed_buckets": [],
+                    "before_count": 0,
+                    "after_count": 0,
+                    "before_sha256": EMPTY_HASH,
+                    "after_sha256": EMPTY_HASH,
+                }
                 for name in SECTION_NAMES
             ],
             "changed_account_balances": [],
@@ -85,13 +94,16 @@ def test_predeploy_pass_still_requires_human_authorization() -> None:
     assert result["read_only"] is True
 
 
-@pytest.mark.parametrize("field,mutation,reason", [
-    ("service", {"autoDeploy": "yes"}, "AUTO_DEPLOY_NOT_OFF"),
-    ("service", {"autoDeployTrigger": "on"}, "AUTO_DEPLOY_NOT_OFF"),
-    ("service", {"id": "wrong"}, "SERVICE_ID_MISMATCH"),
-    ("service", {"branch": "dev"}, "UNEXPECTED_BRANCH"),
-    ("plugin_info", {"version": "0.3.0"}, "PLUGIN_VERSION_MISMATCH"),
-])
+@pytest.mark.parametrize(
+    "field,mutation,reason",
+    [
+        ("service", {"autoDeploy": "yes"}, "AUTO_DEPLOY_NOT_OFF"),
+        ("service", {"autoDeployTrigger": "on"}, "AUTO_DEPLOY_NOT_OFF"),
+        ("service", {"id": "wrong"}, "SERVICE_ID_MISMATCH"),
+        ("service", {"branch": "dev"}, "UNEXPECTED_BRANCH"),
+        ("plugin_info", {"version": "0.3.0"}, "PLUGIN_VERSION_MISMATCH"),
+    ],
+)
 def test_predeploy_fails_closed(field: str, mutation: dict[str, Any], reason: str) -> None:
     args = before_args()
     args[field].update(mutation)
@@ -113,24 +125,39 @@ def test_postdeploy_full_match() -> None:
     assert result["manual_deploy_authorization_required"] is True
 
 
-@pytest.mark.parametrize("mutation,reason", [
-    (lambda a: a["service"].update({"autoDeploy": "yes"}), "AUTO_DEPLOY_NOT_OFF"),
-    (lambda a: a["deployment"].update({"status": "building"}), "LIVE_COMMIT_MISMATCH"),
-    (lambda a: a["deployment"]["commit"].update({"id": "b" * 40}), "LIVE_COMMIT_MISMATCH"),
-    (lambda a: a["plugin_info"].update({"version": "0.3.0"}), "PLUGIN_VERSION_MISMATCH"),
-    (lambda a: a["comparison"].update({"status": "REVIEW_REQUIRED", "matches": False}),
-     "FINANCIAL_COMPARISON_NOT_MATCH"),
-    (lambda a: a["comparison"].update({"after_hash": "b" * 64}),
-     "FINANCIAL_COMPARISON_NOT_MATCH"),
-    (lambda a: a["comparison"]["sections"][0].update({"changed_buckets": ["2"]}),
-     "FINANCIAL_COMPARISON_NOT_MATCH"),
-    (lambda a: a["comparison"]["sections"][1].update({"after_count": 1}),
-     "FINANCIAL_COMPARISON_NOT_MATCH"),
-    (lambda a: a["comparison"].update({"changed_account_balances": [{"account_id": "x"}]}),
-     "FINANCIAL_COMPARISON_NOT_MATCH"),
-    (lambda a: a["comparison"]["quality_after"].update({"status": "REVIEW"}),
-     "FINANCIAL_COMPARISON_NOT_MATCH"),
-])
+@pytest.mark.parametrize(
+    "mutation,reason",
+    [
+        (lambda a: a["service"].update({"autoDeploy": "yes"}), "AUTO_DEPLOY_NOT_OFF"),
+        (lambda a: a["deployment"].update({"status": "building"}), "LIVE_COMMIT_MISMATCH"),
+        (lambda a: a["deployment"]["commit"].update({"id": "b" * 40}), "LIVE_COMMIT_MISMATCH"),
+        (lambda a: a["plugin_info"].update({"version": "0.3.0"}), "PLUGIN_VERSION_MISMATCH"),
+        (
+            lambda a: a["comparison"].update({"status": "REVIEW_REQUIRED", "matches": False}),
+            "FINANCIAL_COMPARISON_NOT_MATCH",
+        ),
+        (
+            lambda a: a["comparison"].update({"after_hash": "b" * 64}),
+            "FINANCIAL_COMPARISON_NOT_MATCH",
+        ),
+        (
+            lambda a: a["comparison"]["sections"][0].update({"changed_buckets": ["2"]}),
+            "FINANCIAL_COMPARISON_NOT_MATCH",
+        ),
+        (
+            lambda a: a["comparison"]["sections"][1].update({"after_count": 1}),
+            "FINANCIAL_COMPARISON_NOT_MATCH",
+        ),
+        (
+            lambda a: a["comparison"].update({"changed_account_balances": [{"account_id": "x"}]}),
+            "FINANCIAL_COMPARISON_NOT_MATCH",
+        ),
+        (
+            lambda a: a["comparison"]["quality_after"].update({"status": "REVIEW"}),
+            "FINANCIAL_COMPARISON_NOT_MATCH",
+        ),
+    ],
+)
 def test_postdeploy_blocks_any_mismatch(mutation: Any, reason: str) -> None:
     args = after_args()
     mutation(args)
