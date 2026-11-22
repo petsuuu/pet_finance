@@ -12,6 +12,10 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 
 from app.services.ledger import Ledger
+from app.services.preventive_audit import (
+    classification_findings,
+    similar_description_duplicates,
+)
 
 ZERO = Decimal("0")
 
@@ -47,6 +51,20 @@ def inspect_integrity(service: Ledger, *, limit: int = 100) -> dict[str, Any]:
             )
         ).mappings()
     }
+    categories_table = service.table("categories")
+    merchants_table = service.table("merchants")
+    categories = [
+        dict(row)
+        for row in service.connection.execute(
+            select(categories_table).where(categories_table.c.user_id == service.user_id)
+        ).mappings()
+    ]
+    merchants = [
+        dict(row)
+        for row in service.connection.execute(
+            select(merchants_table).where(merchants_table.c.user_id == service.user_id)
+        ).mappings()
+    ]
     recorded = {
         row["account_id"]: Decimal(row["current_balance"])
         for row in service.connection.execute(
@@ -152,6 +170,9 @@ def inspect_integrity(service: Ledger, *, limit: int = 100) -> dict[str, Any]:
             )
     recurrence_mismatches.sort(key=lambda row: row["transaction_id"])
 
+    classifications = classification_findings(transactions, categories, merchants)
+    similar_duplicates = similar_description_duplicates(transactions)
+
     return {
         "read_only": True,
         "summary": {
@@ -159,11 +180,17 @@ def inspect_integrity(service: Ledger, *, limit: int = 100) -> dict[str, Any]:
             "balance_mismatches": sum(not row["matches"] for row in balances),
             "potential_duplicate_groups": len(duplicate_groups),
             "recurrence_account_mismatches": len(recurrence_mismatches),
+            "classification_findings": len(classifications),
+            "similar_duplicate_pairs": len(similar_duplicates),
         },
         "balances": balances,
+        "classification_findings": classifications[:limit],
+        "similar_duplicate_pairs": similar_duplicates[:limit],
         "potential_duplicates": duplicate_groups[:limit],
         "recurrence_account_mismatches": recurrence_mismatches[:limit],
         "truncated": {
+            "classification_findings": len(classifications) > limit,
+            "similar_duplicate_pairs": len(similar_duplicates) > limit,
             "potential_duplicates": len(duplicate_groups) > limit,
             "recurrence_account_mismatches": len(recurrence_mismatches) > limit,
         },
