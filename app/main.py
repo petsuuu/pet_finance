@@ -27,6 +27,7 @@ from app.services.account_reassignment import reassign_pending_account
 from app.services.agenda import agenda_router
 from app.services.budgets import budgets_router, ensure_current_budgets
 from app.services.dashboard import dashboard_router
+from app.services.data_quality import data_quality_router
 from app.services.finance_rebase import finance_rebase_router
 from app.services.imports import imports_router
 from app.services.integrity_audit import integrity_router
@@ -253,6 +254,7 @@ def create_app(settings: Settings) -> FastAPI:
     api.include_router(imports_router(ledger))
     api.include_router(finance_rebase_router(ledger))
     api.include_router(dashboard_router(ledger))
+    api.include_router(data_quality_router(ledger))
     api.include_router(agenda_router(ledger))
     api.include_router(budgets_router(ledger))
     api.include_router(spending_router(ledger))
