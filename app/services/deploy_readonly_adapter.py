@@ -51,8 +51,8 @@ class ReadOnlyHttpAdapter:
         self._mcp_url = mcp_url
         self._mcp_token = mcp_oauth_token
         self._github_token = github_token
-        self._client = client if client is not None else httpx.Client(
-            timeout=15.0, follow_redirects=False
+        self._client = (
+            client if client is not None else httpx.Client(timeout=15.0, follow_redirects=False)
         )
 
     def _get(self, url: str, token: str | None) -> Any:
