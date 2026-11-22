@@ -259,6 +259,10 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         parcelas ainda não registradas e meta de reserva não são rateados ali.
         recurring_income_checks explicita recebimentos parciais e a diferença
         não registrada sem transformar essa diferença em receita pendente.
+        envelope_allocation_preview simula transferências sugeridas da Carteira
+        para cobrir lacunas em Essenciais e Não Essenciais: um cenário limitado
+        ao dinheiro registrado e outro condicional a entradas futuras.
+        Ambos são apenas revisão; nunca execute transferências automaticamente.
         """
         params = {k: str(v) for k, v in locals().items() if v is not None}
         result: dict[str, Any] = await rest("GET", "/dashboard/monthly", params=params)
