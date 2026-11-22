@@ -14,6 +14,7 @@ from sqlalchemy import select
 from app.services.ledger import Ledger
 from app.services.preventive_audit import (
     classification_findings,
+    pending_reference_findings,
     similar_description_duplicates,
 )
 
@@ -31,6 +32,12 @@ def inspect_integrity(service: Ledger, *, limit: int = 100) -> dict[str, Any]:
                 accounts_table.c.user_id == service.user_id,
                 accounts_table.c.active.is_(True),
             )
+        ).mappings()
+    ]
+    all_accounts = [
+        dict(row)
+        for row in service.connection.execute(
+            select(accounts_table).where(accounts_table.c.user_id == service.user_id)
         ).mappings()
     ]
     transactions = [
@@ -172,6 +179,7 @@ def inspect_integrity(service: Ledger, *, limit: int = 100) -> dict[str, Any]:
 
     classifications = classification_findings(transactions, categories, merchants)
     similar_duplicates = similar_description_duplicates(transactions)
+    pending_references = pending_reference_findings(transactions, all_accounts, rules)
 
     return {
         "read_only": True,
@@ -182,15 +190,18 @@ def inspect_integrity(service: Ledger, *, limit: int = 100) -> dict[str, Any]:
             "recurrence_account_mismatches": len(recurrence_mismatches),
             "classification_findings": len(classifications),
             "similar_duplicate_pairs": len(similar_duplicates),
+            "pending_reference_findings": len(pending_references),
         },
         "balances": balances,
         "classification_findings": classifications[:limit],
         "similar_duplicate_pairs": similar_duplicates[:limit],
+        "pending_reference_findings": pending_references[:limit],
         "potential_duplicates": duplicate_groups[:limit],
         "recurrence_account_mismatches": recurrence_mismatches[:limit],
         "truncated": {
             "classification_findings": len(classifications) > limit,
             "similar_duplicate_pairs": len(similar_duplicates) > limit,
+            "pending_reference_findings": len(pending_references) > limit,
             "potential_duplicates": len(duplicate_groups) > limit,
             "recurrence_account_mismatches": len(recurrence_mismatches) > limit,
         },
