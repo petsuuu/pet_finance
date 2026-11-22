@@ -229,7 +229,7 @@ def test_mcp_get_queries_do_not_leak_internal_rest(
         for key, value in required.items():
             assert seen[path][key] == value
         assert set(seen[path]).issubset(
-            set(required) | {"start_date", "end_date", "search", "status"}
+            set(required) | {"start_date", "end_date", "search", "status", "safety_margin"}
         )
 
     headers = {"Authorization": "Bearer test-token"}
