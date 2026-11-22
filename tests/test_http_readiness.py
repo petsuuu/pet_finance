@@ -1,9 +1,11 @@
 """Offline tests for the public-only, no-credential HTTP preflight."""
 
+from typing import Any
+
 from app.services.http_readiness import ORIGIN, assess, probe
 
 
-def good_results() -> dict[str, tuple[int, dict, dict]]:
+def good_results() -> dict[str, tuple[int, dict[str, Any], dict[str, str]]]:
     return {
         "health": (200, {"status": "ok"}, {}),
         "auth": (
