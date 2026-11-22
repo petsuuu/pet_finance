@@ -114,8 +114,11 @@ def prepare_predeploy(
         payload = json.dumps(record, sort_keys=True, separators=(",", ":")).encode()
         sealed = Fernet(encryption_key).encrypt(payload)
         destination = _save_private(vault_dir, "baseline-" + commit + ".sealed", sealed)
-        return {**report, "evidence_file": str(destination),
-                "baseline_hash": baseline["snapshot_hash"]}
+        return {
+            **report,
+            "evidence_file": str(destination),
+            "baseline_hash": baseline["snapshot_hash"],
+        }
     except (ValueError, OSError, KeyError, TypeError, InvalidToken):
         return _blocked("PREDEPLOY_EVIDENCE_UNAVAILABLE", "predeploy")
     except Exception:
@@ -159,13 +162,16 @@ def verify_postdeploy(
             baseline=baseline,
             comparison=comparison,
         )
-        return {**report, "baseline_hash": baseline["snapshot_hash"],
-                "current_hash": comparison.get("after_hash"),
-                "changed_sections": [
-                    section.get("section")
-                    for section in comparison.get("sections", [])
-                    if isinstance(section, dict) and section.get("matches") is not True
-                ]}
+        return {
+            **report,
+            "baseline_hash": baseline["snapshot_hash"],
+            "current_hash": comparison.get("after_hash"),
+            "changed_sections": [
+                section.get("section")
+                for section in comparison.get("sections", [])
+                if isinstance(section, dict) and section.get("matches") is not True
+            ],
+        }
     except (ValueError, OSError, KeyError, TypeError, InvalidToken, json.JSONDecodeError):
         return _blocked("ENCRYPTED_EVIDENCE_INVALID", "postdeploy")
     except Exception:
