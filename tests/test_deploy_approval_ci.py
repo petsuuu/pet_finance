@@ -2,6 +2,7 @@
 import base64
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives import serialization
@@ -28,7 +29,7 @@ def test_ephemeral_authority_accepts_only_matching_claims() -> None:
         "expires_at": (NOW + timedelta(minutes=30)).isoformat(),
         "approved": True,
     }
-    receipt = {
+    receipt: dict[str, Any] = {
         "claims": claims,
         "signature": base64.b64encode(key.sign(canonical_claims(claims))).decode(),
     }
