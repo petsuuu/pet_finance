@@ -110,7 +110,9 @@ class ReadOnlyHttpAdapter:
             raise ValueError("INVALID_RENDER_DEPLOY_RESPONSE")
         return deployment
 
-    def _mcp_request(self, message: dict[str, Any], *, session: str | None = None) -> dict[str, Any]:
+    def _mcp_request(
+        self, message: dict[str, Any], *, session: str | None = None
+    ) -> dict[str, Any]:
         headers = {
             "Authorization": "Bearer " + self._mcp_token,
             "Accept": "application/json, text/event-stream",
