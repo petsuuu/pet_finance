@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlsplit
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 from playwright.sync_api import Route, sync_playwright
@@ -152,6 +153,96 @@ def test_mcp_plugin_version_is_semver_traceable_and_read_only(
     assert mcp_client.get("/api/v1/accounts", headers=headers).json() == before_accounts
     assert mcp_client.get("/api/v1/transactions", headers=headers).json() == before_transactions
     assert mcp_client.get("/api/v1/audit/transactions", headers=headers).json() == before_audit
+
+
+def test_mcp_get_queries_do_not_leak_internal_rest(
+    mcp_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """MCP tool calls must send only public named params to the REST API."""
+    identity, code = grant(mcp_client)
+    token = exchange(mcp_client, identity, code).json()["access_token"]
+    original = httpx.AsyncClient.request
+    seen: dict[str, dict[str, str]] = {}
+
+    async def track(
+        self: httpx.AsyncClient, method: str, url: str, **kwargs: Any
+    ) -> httpx.Response:
+        if method == "GET" and url.startswith("/api/v1/"):
+            seen[url] = dict(kwargs.get("params") or {})
+        return await original(self, method, url, **kwargs)
+
+    monkeypatch.setattr(httpx.AsyncClient, "request", track)
+    queries: list[tuple[str, dict[str, Any], str, dict[str, str]]] = [
+        (
+            "list_transactions",
+            {"archive_mode": "archived", "limit": 7, "offset": 3},
+            "/api/v1/transactions",
+            {"archive_mode": "archived", "limit": "7", "offset": "3"},
+        ),
+        (
+            "monthly_dashboard",
+            {"year": 2026, "month": 11, "as_of": "2026-11-22"},
+            "/api/v1/dashboard/monthly",
+            {"year": "2026", "month": "11", "as_of": "2026-11-22"},
+        ),
+        (
+            "monthly_agenda",
+            {"year": 2026, "month": 11, "as_of": "2026-11-22"},
+            "/api/v1/dashboard/agenda",
+            {"year": "2026", "month": "11", "as_of": "2026-11-22"},
+        ),
+        (
+            "daily_cashflow",
+            {"as_of": "2026-11-22", "safety_margin": "25"},
+            "/api/v1/dashboard/cashflow",
+            {"as_of": "2026-11-22", "safety_margin": "25"},
+        ),
+        (
+            "recovery_plan",
+            {"safety_margin": "25", "estimated_bank_charges": "5"},
+            "/api/v1/dashboard/recovery-plan",
+            {"safety_margin": "25", "estimated_bank_charges": "5"},
+        ),
+        (
+            "check_purchase",
+            {"amount": "20", "safety_margin": "25"},
+            "/api/v1/dashboard/purchase-check",
+            {"amount": "20", "safety_margin": "25"},
+        ),
+    ]
+    before_accounts = mcp_client.get(
+        "/api/v1/accounts", headers={"Authorization": "Bearer test-token"}
+    ).json()
+    before_transactions = mcp_client.get(
+        "/api/v1/transactions", headers={"Authorization": "Bearer test-token"}
+    ).json()
+    before_history = mcp_client.get(
+        "/api/v1/audit/transactions", headers={"Authorization": "Bearer test-token"}
+    ).json()
+
+    for name, arguments, path, required in queries:
+        result = rpc(
+            mcp_client, token, "tools/call", {"name": name, "arguments": arguments}
+        )
+        assert result.status_code == 200, result.text
+        assert not result.json()["result"].get("isError"), (name, result.text)
+        assert path in seen
+        assert "rest" not in seen[path]
+        for key, value in required.items():
+            assert seen[path][key] == value
+        assert not (set(seen[path]) - set(required) - {
+            "start_date", "end_date", "search", "status",
+        })
+
+    assert mcp_client.get(
+        "/api/v1/accounts", headers={"Authorization": "Bearer test-token"}
+    ).json() == before_accounts
+    assert mcp_client.get(
+        "/api/v1/transactions", headers={"Authorization": "Bearer test-token"}
+    ).json() == before_transactions
+    assert mcp_client.get(
+        "/api/v1/audit/transactions", headers={"Authorization": "Bearer test-token"}
+    ).json() == before_history
 
 
 def test_oauth_discovery_and_authentication_required(mcp_client: TestClient) -> None:
