@@ -11,7 +11,11 @@ from app.services.budgets import budget_usage
 from app.services.cashflow import daily_cashflow
 from app.services.comparison import category_comparison
 from app.services.ledger import Ledger
-from app.services.monthly_planning import income_reconciliation, planning_summary
+from app.services.monthly_planning import (
+    envelope_projections,
+    income_reconciliation,
+    planning_summary,
+)
 from app.services.occurrences import occurrence_dates
 from app.services.payments import payment_groups
 from app.services.radar import recurring_radar
@@ -104,6 +108,7 @@ def monthly_dashboard(
     plan_status = planning_summary(
         balance, commitments, planned, target, safety_margin, expected_income
     )
+    envelopes = envelope_projections(accounts, transactions, rules, start, end, as_of)
     result = {
         "year": year,
         "month": month,
@@ -119,6 +124,7 @@ def monthly_dashboard(
         "expected_income": expected_income,
         "income_reconciliation": income_status,
         "monthly_planning": plan_status,
+        "envelope_projections": envelopes,
         "safety_margin": safety_margin,
         "free_after_commitments": balance - commitments - safety_margin,
         "forecast_closing_balance": balance + expected_income - commitments,
