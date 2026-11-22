@@ -175,7 +175,6 @@ def envelope_projections(
     """
     from app.services.scoping import account_balance
 
-    account_by_id = {account["id"]: account for account in accounts}
     represented = {
         (row["recurrence_id"], row["transaction_date"].year, row["transaction_date"].month)
         for row in transactions
@@ -231,7 +230,9 @@ def envelope_projections(
                 "pending_transfer_in_not_available": pending_in,
                 "expected_income_not_available": expected_income,
                 "after_known_commitments_without_income": without_income,
-                "projected_after_unconfirmed_inflows": without_income + expected_income + pending_in,
+                "projected_after_unconfirmed_inflows": (
+                    without_income + expected_income + pending_in
+                ),
                 "shortfall_without_income": max(ZERO, -without_income),
                 "needs_funding": without_income < ZERO,
             }
