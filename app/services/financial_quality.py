@@ -10,9 +10,7 @@ from typing import Any
 ZERO = Decimal("0")
 
 
-def financial_quality_signals(
-    quality: dict[str, Any], monthly: dict[str, Any]
-) -> dict[str, Any]:
+def financial_quality_signals(quality: dict[str, Any], monthly: dict[str, Any]) -> dict[str, Any]:
     """Combine integrity findings and cash-risk signals without writes."""
     alerts: list[dict[str, Any]] = []
     projections = monthly["envelope_projections"]["items"]
