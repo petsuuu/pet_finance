@@ -602,7 +602,6 @@ def test_mcp_updates_existing_recurrence(mcp_client: TestClient) -> None:
     assert len(mcp_client.get("/api/v1/recurrences", headers=headers).json()) == 1
     assert mcp_client.get("/api/v1/transactions", headers=headers).json() == []
 
-# Read-only MCP data-quality dashboard regressions.
 
 def test_mcp_quality_dashboard_is_read_only(mcp_client: TestClient) -> None:
     identity, code = grant(mcp_client)
