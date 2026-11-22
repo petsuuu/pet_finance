@@ -1,4 +1,5 @@
 """GitHub-hosted release readiness checks: no deploy or production access."""
+
 from typing import Any
 
 import pytest
@@ -17,9 +18,7 @@ def protected() -> dict[str, Any]:
 
 
 def test_protected_manual_main_is_policy_ready_only() -> None:
-    result = evaluate_environment(
-        protected(), ref="refs/heads/main", event="workflow_dispatch"
-    )
+    result = evaluate_environment(protected(), ref="refs/heads/main", event="workflow_dispatch")
     assert result == {"status": "PASS", "reason": "ENVIRONMENT_POLICY_VERIFIED_ONLY"}
 
 
@@ -35,9 +34,10 @@ def test_protected_manual_main_is_policy_ready_only() -> None:
 def test_missing_protection_fails_closed(change: dict[str, Any]) -> None:
     data = protected()
     data.update(change)
-    assert evaluate_environment(
-        data, ref="refs/heads/main", event="workflow_dispatch"
-    )["status"] == "BLOCKED"
+    assert (
+        evaluate_environment(data, ref="refs/heads/main", event="workflow_dispatch")["status"]
+        == "BLOCKED"
+    )
 
 
 @pytest.mark.parametrize(
