@@ -160,6 +160,7 @@ def planning_summary(
         ),
     }
 
+
 def envelope_projections(
     accounts: list[dict[str, Any]],
     transactions: list[dict[str, Any]],
