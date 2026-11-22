@@ -35,15 +35,23 @@ def test_ephemeral_authority_accepts_only_matching_claims() -> None:
         "signature": base64.b64encode(key.sign(canonical_claims(claims))).decode(),
     }
     verifier = SignedApprovalVerifier(public)
-    args = {
-        "service_id": "srv-ci-example",
-        "commit": "a" * 40,
-        "plugin_version": "0.4.0",
-        "authorization_id": "approval-ci-0001",
-        "execution_id": "execution-ci-0001",
-        "at": NOW,
-    }
-    assert verifier.verify(receipt, **args)
+    def verify(
+        candidate: dict[str, Any],
+        *,
+        at: datetime = NOW,
+        execution_id: str = "execution-ci-0001",
+    ) -> bool:
+        return verifier.verify(
+            candidate,
+            service_id="srv-ci-example",
+            commit="a" * 40,
+            plugin_version="0.4.0",
+            authorization_id="approval-ci-0001",
+            execution_id=execution_id,
+            at=at,
+        )
+
+    assert verify(receipt)
     for field, value in (
         ("commit", "b" * 40),
         ("service_id", "srv-another"),
@@ -53,11 +61,11 @@ def test_ephemeral_authority_accepts_only_matching_claims() -> None:
     ):
         altered = deepcopy(receipt)
         altered["claims"][field] = value
-        assert not verifier.verify(altered, **args)
-    assert not verifier.verify(receipt, **{**args, "at": NOW + timedelta(minutes=31)})
-    assert not verifier.verify(receipt, **{**args, "execution_id": "execution-ci-0002"})
+        assert not verify(altered)
+    assert not verify(receipt, at=NOW + timedelta(minutes=31))
+    assert not verify(receipt, execution_id="execution-ci-0002")
     wrong_key = Ed25519PrivateKey.generate()
     forged = deepcopy(receipt)
     forged["signature"] = base64.b64encode(wrong_key.sign(canonical_claims(claims))).decode()
-    assert not verifier.verify(forged, **args)
-    assert not verifier.verify({"claims": claims, "signature": "invalid"}, **args)
+    assert not verify(forged)
+    assert not verify({"claims": claims, "signature": "invalid"})
