@@ -47,6 +47,7 @@ pode criar um `SignedApprovalVerifier` a partir dela:
 ```python
 import base64
 from app.services.deploy_approval import SignedApprovalVerifier
+
 verifier = SignedApprovalVerifier(base64.b64decode(public_key_base64))
 ```
 
