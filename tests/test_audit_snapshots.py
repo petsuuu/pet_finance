@@ -198,9 +198,7 @@ def test_buckets_are_stable_for_row_order_and_reveal_targeted_drift() -> None:
     reversed_rows = list(reversed(left))
     # Snapshot reader sorts by stable PK before calling the manifest.
     first = snapshots._bucket_manifest(sorted(left, key=lambda row: row["id"]), key="id")
-    second = snapshots._bucket_manifest(
-        sorted(reversed_rows, key=lambda row: row["id"]), key="id"
-    )
+    second = snapshots._bucket_manifest(sorted(reversed_rows, key=lambda row: row["id"]), key="id")
     assert first == second
     changed = [row.copy() for row in left]
     changed[1]["amount"] = "21.00"
@@ -217,9 +215,7 @@ def test_compare_rejects_invalid_bucket_counts_and_digest(
     baseline = client.get("/api/v1/audit/financial-snapshot").json()
     bad = __import__("copy").deepcopy(baseline)
     bad["sections"]["accounts"]["buckets"]["0"]["count"] += 1
-    invalid = client.post(
-        "/api/v1/audit/financial-snapshot/compare", json={"baseline": bad}
-    )
+    invalid = client.post("/api/v1/audit/financial-snapshot/compare", json={"baseline": bad})
     assert invalid.status_code == 422
 
     bad_hash = __import__("copy").deepcopy(baseline)
@@ -237,9 +233,7 @@ def test_bucket_manifest_includes_historic_and_excluded_account_rows(
     excluded = add_account(client, "Excluida")
     # The snapshot operates on all user accounts, including those not
     # displayed in the main financial summary.
-    patch = client.patch(
-        f"/api/v1/accounts/{excluded}", json={"include_in_summary": False}
-    )
+    patch = client.patch(f"/api/v1/accounts/{excluded}", json={"include_in_summary": False})
     assert patch.status_code == 200, patch.text
     add_expense(client, included, status="PENDING", key="audit-52-a", amount="11")
     add_expense(client, excluded, status="PENDING", key="audit-52-b", amount="12")
