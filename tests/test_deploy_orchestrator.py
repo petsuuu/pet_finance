@@ -86,7 +86,7 @@ class FakeSources:
                 {
                     "section": name,
                     "matches": not (mismatch and name == "transactions_archived"),
-                    "changed_buckets": ["3"] if mismatch and name == "transactions_archived" else [],
+                    "changed_buckets": (["3"] if mismatch and name == "transactions_archived" else []),
                     "before_count": 0,
                     "after_count": 1 if mismatch and name == "transactions_archived" else 0,
                     "before_sha256": EMPTY_HASH,
