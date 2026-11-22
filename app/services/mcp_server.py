@@ -3,6 +3,7 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import date
+from importlib.metadata import version as package_version
 from typing import Any
 from urllib.parse import urlsplit
 from uuid import UUID
@@ -65,11 +66,30 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
             allowed_origins=[oauth.issuer],
         ),
     )
+    # The pinned MCP 1.x FastMCP wrapper lacks a public version= argument.
+    # Set the underlying protocol server version to the installed Pet Finance release.
+    plugin_version = package_version("pet-finance")
+    server._mcp_server.version = plugin_version
     read = ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=False)
     write = ToolAnnotations(
         readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False
     )
     meta = {"securitySchemes": [{"type": "oauth2", "scopes": ["finance"]}]}
+
+    @server.tool(annotations=read, meta=meta)
+    async def plugin_info() -> dict[str, Any]:
+        """Consulte a versão do conector Pet Finance, sem ler ou modificar dados financeiros.
+
+        A versão segue SemVer e corresponde à versão instalada do pacote pet-finance.
+        Use para conferir compatibilidade antes de atualizar o conector.
+        """
+        return {
+            "name": "Pet Finance",
+            "version": plugin_version,
+            "api_version": "v1",
+            "versioning": "semver",
+            "read_only": True,
+        }
 
     async def rest(
         method: str,
