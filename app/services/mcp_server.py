@@ -286,6 +286,33 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         return result
 
     @server.tool(annotations=read, meta=meta)
+    async def financial_quality_dashboard(
+        year: int,
+        month: int,
+        as_of: date | None = None,
+        limit: int = 100,
+    ) -> dict[str, Any]:
+        """Consulte integridade e riscos financeiros sem modificar registros.
+
+        Distingue divergências contábeis de saldos negativos e insuficiência
+        projetada por envelope. Candidatos a duplicidade exigem revisão humana.
+        Receita futura não constitui dinheiro disponível; nenhum alerta
+        autoriza pagamentos, transferências ou alterações.
+        """
+        if not 2000 <= year <= 2100:
+            raise ValueError("year must be between 2000 and 2100")
+        if not 1 <= month <= 12:
+            raise ValueError("month must be between 1 and 12")
+        if not 1 <= limit <= 500:
+            raise ValueError("limit must be between 1 and 500")
+        result: dict[str, Any] = await rest(
+            "GET",
+            "/dashboard/financial-quality",
+            params=_query_params(year=year, month=month, as_of=as_of, limit=limit),
+        )
+        return result
+
+    @server.tool(annotations=read, meta=meta)
     async def monthly_dashboard(
         year: int,
         month: int,
