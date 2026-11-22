@@ -1,5 +1,6 @@
 """PR #54: encrypted baseline lifecycle and read-only release orchestration."""
 
+import os
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -289,7 +290,7 @@ def test_postflight_rejects_stale_comparison(tmp_path: Path) -> None:
         result["after_captured_at"] = (NOW - timedelta(minutes=6)).isoformat()
         return result
 
-    source.compare_financial_audit = stale  # type: ignore[method-assign]
+    source.compare_financial_audit = stale  # type: ignore[assignment]
     assert postflight(source, file, key)["issues"] == ["STALE_POSTDEPLOY_EVIDENCE"]
 
 
@@ -319,9 +320,7 @@ def test_vault_rejects_symlink_evidence_file(tmp_path: Path) -> None:
 def test_no_partial_file_on_fsync_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     source = FakeSources()
     key = Fernet.generate_key()
-    import app.services.deploy_orchestrator as module
-
-    original = module.os.fsync
+    original = os.fsync
     calls = 0
 
     def broken(fd: int) -> None:
@@ -331,7 +330,7 @@ def test_no_partial_file_on_fsync_failure(tmp_path: Path, monkeypatch: pytest.Mo
             raise OSError("filesystem failure")
         original(fd)
 
-    monkeypatch.setattr(module.os, "fsync", broken)
+    monkeypatch.setattr(os, "fsync", broken)
     result = preflight(source, tmp_path / "private", key)
     assert result["status"] == "BLOCKED"
     assert list((tmp_path / "private").iterdir()) == []
