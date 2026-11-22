@@ -1,4 +1,5 @@
 """Isolated CI approval checks. Ephemeral keys never authorize production."""
+
 import base64
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
@@ -57,8 +58,6 @@ def test_ephemeral_authority_accepts_only_matching_claims() -> None:
     assert not verifier.verify(receipt, **{**args, "execution_id": "execution-ci-0002"})
     wrong_key = Ed25519PrivateKey.generate()
     forged = deepcopy(receipt)
-    forged["signature"] = base64.b64encode(
-        wrong_key.sign(canonical_claims(claims))
-    ).decode()
+    forged["signature"] = base64.b64encode(wrong_key.sign(canonical_claims(claims))).decode()
     assert not verifier.verify(forged, **args)
     assert not verifier.verify({"claims": claims, "signature": "invalid"}, **args)
