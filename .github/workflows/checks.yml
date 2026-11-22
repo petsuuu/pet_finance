@@ -30,3 +30,18 @@ jobs:
       - run: mypy app migrations tests
       - run: python -m playwright install --with-deps chromium
       - run: pytest -q
+  approval-security:
+    name: Ed25519 isolated approval verification
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      PF_APPROVAL_TEST_MODE: isolated
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -e '.[dev]'
+      - name: Validate temporary Ed25519 keys and fail-closed behavior
+        run: pytest -q tests/test_deploy_local_signer.py tests/test_deploy_approval_ci.py
