@@ -35,6 +35,7 @@ def test_ephemeral_authority_accepts_only_matching_claims() -> None:
         "signature": base64.b64encode(key.sign(canonical_claims(claims))).decode(),
     }
     verifier = SignedApprovalVerifier(public)
+
     def verify(
         candidate: dict[str, Any],
         *,
