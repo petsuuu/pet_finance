@@ -171,6 +171,105 @@ def test_follow_up_distinguishes_partial_full_and_unknown_salary() -> None:
     assert unidentified["review_gate"] == "AWAIT_SALARY_CONFIRMATION"
 
 
+def test_salary_occurrences_do_not_offset_another_salary_shortfall() -> None:
+    income, envelopes, allocation = reports("2200", "0")
+    income["recurring_income_checks"][0]["recurrence_id"] = "first"
+    income["recurring_income_checks"].append(
+        {
+            "recurrence_id": "second",
+            "description": "Salário adicional",
+            "due_date": date(2026, 11, 27),
+            "expected_amount": Decimal("1000"),
+            "received_amount": Decimal("0"),
+            "pending_amount": Decimal("900"),
+        }
+    )
+    original = str((income, envelopes, allocation))
+    data = post_salary_envelope_alerts(income, envelopes, allocation, as_of=date(2026, 11, 22))
+    salary = data["salary"]
+    assert salary["expected"] == Decimal("2000")
+    assert salary["recorded_received"] == Decimal("2200")
+    assert salary["state"] == "PARTIALLY_RECORDED"
+    assert salary["unreceived_against_expected"] == Decimal("1000")
+    assert salary["not_recorded_against_expected"] == Decimal("100")
+    assert salary["earliest_outstanding_due_date"] == date(2026, 11, 27)
+    assert data["review_gate"] == "REVIEW_PARTIAL_RECEIPT"
+    assert data["follow_up"]["action"] == "RECONCILE_PARTIAL_SALARY"
+
+    breakdown = salary["recurrence_breakdown"]
+    assert breakdown["all_fully_posted"] is False
+    assert breakdown["posted_above_expected_total"] == Decimal("1200")
+    assert breakdown["unreceived_total"] == Decimal("1000")
+    assert breakdown["not_recorded_after_pending_total"] == Decimal("100")
+    assert [item["recurrence_id"] for item in breakdown["items"]] == ["first", "second"]
+    assert breakdown["items"][0]["recording_state"] == "FULLY_POSTED"
+    assert breakdown["items"][1]["recording_state"] == "PENDING_ONLY"
+    assert str((income, envelopes, allocation)) == original
+
+
+def test_salary_breakdown_handles_fully_posted_and_pending_only() -> None:
+    income, envelope, allocation = reports("1000", "0")
+    income["recurring_income_checks"].append(
+        {
+            "description": "Salário bônus",
+            "due_date": "2026-11-27",
+            "expected_amount": "1000",
+            "received_amount": "1050",
+            "pending_amount": "0",
+        }
+    )
+    full = post_salary_envelope_alerts(income, envelope, allocation, as_of=date(2026, 11, 29))
+    assert full["salary"]["state"] == "SALARY_RECORDED"
+    assert full["salary"]["unreceived_against_expected"] == Decimal("0")
+    assert full["salary"]["recurrence_breakdown"]["all_fully_posted"] is True
+    assert full["salary"]["recurrence_breakdown"]["posted_above_expected_total"] == Decimal("50")
+    assert full["salary"]["earliest_outstanding_due_date"] is None
+    assert full["salary"]["bank_deposit_verified"] is False
+
+    pending = post_salary_envelope_alerts(*reports("0", "1000"), as_of=date(2026, 11, 27))
+    assert pending["salary"]["state"] == "AWAITING_RECEIPT"
+    assert pending["salary"]["not_recorded_against_expected"] == Decimal("0")
+    assert pending["salary"]["unreceived_against_expected"] == Decimal("1000")
+    assert pending["salary"]["recurrence_breakdown"]["items"][0]["recording_state"] == (
+        "PENDING_ONLY"
+    )
+    assert pending["review_gate"] == "AWAIT_SALARY_CONFIRMATION"
+
+
+def test_salary_breakdown_excludes_unrelated_income_and_handles_missing_date() -> None:
+    income, envelope, allocation = reports("0", "100")
+    income["recurring_income_checks"].append(
+        {
+            "description": "Aluguel",
+            "due_date": date(2026, 11, 20),
+            "expected_amount": Decimal("9000"),
+            "received_amount": Decimal("9000"),
+            "pending_amount": Decimal("0"),
+        }
+    )
+    income["recurring_income_checks"].append(
+        {
+            "description": "Salário sem data",
+            "due_date": None,
+            "expected_amount": Decimal("500"),
+            "received_amount": Decimal("0"),
+            "pending_amount": Decimal("0"),
+        }
+    )
+    result = post_salary_envelope_alerts(income, envelope, allocation, as_of=date(2026, 11, 20))
+    breakdown = result["salary"]["recurrence_breakdown"]
+    assert [x["description"] for x in breakdown["items"]] == [
+        "Salário mensal",
+        "Salário sem data",
+    ]
+    assert result["salary"]["expected"] == Decimal("1500")
+    assert result["salary"]["not_recorded_against_expected"] == Decimal("1400")
+
+    no_salary = post_salary_envelope_alerts(*reports("0", "0", salary=False))
+    assert no_salary["salary"]["recurrence_breakdown"]["items"] == []
+    assert no_salary["salary"]["recurrence_breakdown"]["all_fully_posted"] is False
+
+
 def test_unrelated_income_does_not_count_as_salary() -> None:
     data = post_salary_envelope_alerts(*reports("1000", "0", salary=False))
     assert data["salary"]["state"] == "SALARY_RULE_NOT_IDENTIFIED"
@@ -230,6 +329,8 @@ def test_dashboard_alerts_do_not_mutate_financial_records(client: TestClient) ->
     assert data["salary"]["earliest_outstanding_due_date"] == "2026-11-25"
     assert data["salary"]["days_until_due"] == 3
     assert data["salary"]["receipt_overdue"] is False
+    assert Decimal(data["salary"]["unreceived_against_expected"]) == Decimal("1000")
+    assert data["salary"]["recurrence_breakdown"]["items"][0]["recording_state"] == ("NOT_RECORDED")
     assert data["follow_up"]["action"] == "CHECK_UPCOMING_SALARY"
     assert data["follow_up"]["read_only"] is True
     assert data["shortfall_alert_count"] == 1
