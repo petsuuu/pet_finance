@@ -4,6 +4,32 @@ O pacote de aplicação `pet-finance` define a versão oficial do conector MCP e
 `pyproject.toml`. O servidor publica a mesma versão no handshake MCP e na
 ferramenta autenticada e somente leitura `plugin_info`.
 
+## [0.3.0] - Em revisão (PR #51, 22/11/2026)
+
+### Adicionado
+- Auditoria Inteligente v2: endpoints OAuth/Bearer somente leitura
+  `GET /api/v1/audit/financial-snapshot` e
+  `POST /api/v1/audit/financial-snapshot/compare`.
+- Snapshot PostgreSQL `REPEATABLE READ READ ONLY` em uma única transação,
+  com todas as contas (incluindo excluídas do resumo), saldos, transações
+  ativas/arquivadas e histórico completo de auditoria.
+- SHA-256 determinístico das linhas completas, organizado por seção, e
+  verificação global de integridade, com detalhes de saldos por conta.
+- Comparação dirigida por snapshot anterior mantido pelo cliente, sinalizando
+  qualquer alteração, inclusive movimentações legítimas durante o deploy.
+- Ferramentas MCP `financial_audit_snapshot` e `compare_financial_audit`,
+  ambas de leitura e autenticadas.
+
+### Proteções
+- Snapshots não são armazenados no banco e não alteram dados financeiros.
+- O snapshot anterior deve ser capturado e preservado de fonte confiável;
+  hashes desacompanhados de autenticação não provam sua origem.
+- Mudanças entre capturas exigem revisão; correspondência de hashes não
+  comprova liquidação bancária.
+- Versão `0.3.0` candidata a publicação em lote; PR #50 (`0.2.1`) já
+  incorporada à `main`, mas ainda não publicada isoladamente.
+- Nenhum deploy, tag ou merge é realizado por esta PR.
+
 ## [0.2.1] - Em revisão (PR #50, 22/11/2026)
 
 ### Corrigido
