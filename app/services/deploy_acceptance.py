@@ -31,8 +31,11 @@ def acceptance_report(source: ReadOnlyHttpAdapter, *, expected_service: str) -> 
     comparison = source.compare_financial_audit(snapshot)
     sections = comparison.get("sections")
     expected = {
-        "accounts", "account_balances", "transactions_active",
-        "transactions_archived", "audit_history",
+        "accounts",
+        "account_balances",
+        "transactions_active",
+        "transactions_archived",
+        "audit_history",
     }
     contract_ok = (
         service.get("id") == expected_service
@@ -57,7 +60,8 @@ def acceptance_report(source: ReadOnlyHttpAdapter, *, expected_service: str) -> 
         and len(sections) == len(expected)
         and all(
             item.get("matches") is True and item.get("changed_buckets") == []
-            for item in sections if isinstance(item, dict)
+            for item in sections
+            if isinstance(item, dict)
         )
     )
     return {
