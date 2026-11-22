@@ -46,6 +46,8 @@ def test_clean_dashboard_has_no_warnings(client: TestClient) -> None:
         "balances",
         "potential_duplicates",
         "recurrence_accounts",
+        "classification",
+        "similar_duplicates",
     ]
     assert all(section["severity"] == "OK" for section in data["sections"])
 

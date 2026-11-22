@@ -15,10 +15,11 @@ def data_quality_dashboard(service: Ledger, *, limit: int = 100) -> dict[str, An
     balance_count = summary["balance_mismatches"]
     duplicate_count = summary["potential_duplicate_groups"]
     recurrence_count = summary["recurrence_account_mismatches"]
+    classification_count = summary.get("classification_findings", 0)
+    similar_count = summary.get("similar_duplicate_pairs", 0)
 
-    status = (
-        "CRITICAL" if balance_count else ("REVIEW" if duplicate_count or recurrence_count else "OK")
-    )
+    review_count = duplicate_count + recurrence_count + classification_count + similar_count
+    status = "CRITICAL" if balance_count else ("REVIEW" if review_count else "OK")
     sections = [
         {
             "id": "balances",
@@ -48,6 +49,26 @@ def data_quality_dashboard(service: Ledger, *, limit: int = 100) -> dict[str, An
             "items": audit["recurrence_account_mismatches"],
             "truncated": audit["truncated"]["recurrence_account_mismatches"],
         },
+        {
+            "id": "classification",
+            "title": "Classificação de despesas",
+            "severity": "REVIEW" if classification_count else "OK",
+            "count": classification_count,
+            "description": (
+                "Categorias ausentes, inativas ou diferentes do padrão do estabelecimento."
+            ),
+            "items": audit.get("classification_findings", []),
+            "truncated": audit["truncated"].get("classification_findings", False),
+        },
+        {
+            "id": "similar_duplicates",
+            "title": "Descrições semelhantes",
+            "severity": "REVIEW" if similar_count else "OK",
+            "count": similar_count,
+            "description": "Mesmo valor, conta e data com descrições muito semelhantes.",
+            "items": audit.get("similar_duplicate_pairs", []),
+            "truncated": audit["truncated"].get("similar_duplicate_pairs", False),
+        },
     ]
     return {
         "read_only": True,
@@ -57,7 +78,9 @@ def data_quality_dashboard(service: Ledger, *, limit: int = 100) -> dict[str, An
             "balance_mismatches": balance_count,
             "potential_duplicate_groups": duplicate_count,
             "recurrence_account_mismatches": recurrence_count,
-            "total_findings": balance_count + duplicate_count + recurrence_count,
+            "classification_findings": classification_count,
+            "similar_duplicate_pairs": similar_count,
+            "total_findings": balance_count + review_count,
         },
         "sections": sections,
         "disclaimer": (
