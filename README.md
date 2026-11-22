@@ -1,3 +1,18 @@
+## Diagnóstico rápido das divergências (Auditoria v2.1)
+
+Os snapshots na versão candidata `0.4.0` usam **16 grupos estáveis por seção**,
+calculados a partir do identificador do registro e de SHA-256. Cada seção
+mantém o hash completo e inclui um manifesto de contagem e hash por grupo.
+Se uma comparação encontrar divergência, `changed_buckets` mostra somente
+os grupos alterados. Nenhum identificador de lançamento ou conteúdo financeiro
+adicional é publicado por esse diagnóstico. O agrupamento reduz o conjunto
+que precisa de investigação manual; não justifica omitir a verificação completa.
+
+O `schema_version` de snapshot passa de 1 para 2. É necessário capturar
+um novo snapshot pré-deploy do mesmo formato e guardá-lo com integridade;
+a comparação entre formatos diferentes é rejeitada. A PR #51 (formato 1)
+ainda não foi publicada, portanto não há snapshot de produção legado.
+
 ## Auditoria Inteligente v2 (snapshots financeiros)
 
 Antes de qualquer deploy manual autorizado, capture o snapshot usando a ferramenta

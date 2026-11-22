@@ -4,6 +4,21 @@ O pacote de aplicação `pet-finance` define a versão oficial do conector MCP e
 `pyproject.toml`. O servidor publica a mesma versão no handshake MCP e na
 ferramenta autenticada e somente leitura `plugin_info`.
 
+## [0.4.0] - Em revisão (PR #52, 22/11/2026)
+
+### Adicionado
+- Manifesto de 16 grupos de SHA-256 determinísticos por seção, particionados por identificador estável, além do hash completo existente.
+- Comparação indica `changed_buckets` nas seções divergentes, inclusive quando a contagem permanece igual.
+- Validação de integridade do manifesto, contagens e assinatura global antes de comparar.
+- Testes para determinismo, alterações localizadas, corrupção de manifesto e contas excluídas do resumo.
+
+### Segurança e compatibilidade
+- Sem transferência de registros detalhados no resultado; todos continuam cobertos por hashes completos.
+- Versão 2 do formato de snapshot: snapshots de formato 1 devem ser recapturados antes de comparar.
+  Como o formato anterior 1 ainda não foi publicado (PR #51 sem deploy), não há clientes de produção migrados.
+- Melhoria aditiva da ferramenta MCP (MINOR SemVer). Nenhuma migração ou escrita financeira.
+- Esta versão aguarda autorização separada de merge e deploy; publicação em lote com PRs #50–#52.
+
 ## [0.3.0] - Em revisão (PR #51, 22/11/2026)
 
 ### Adicionado
