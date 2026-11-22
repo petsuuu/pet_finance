@@ -143,14 +143,18 @@ class ReadOnlyHttpAdapter:
     def _mcp_read(self, tool: str, arguments: dict[str, Any]) -> dict[str, Any]:
         if tool not in {"plugin_info", "financial_audit_snapshot", "compare_financial_audit"}:
             raise ValueError("MCP_TOOL_NOT_ALLOWLISTED")
-        initialized = self._mcp_request({
-            "jsonrpc": "2.0", "id": 1, "method": "initialize",
-            "params": {
-                "protocolVersion": "2025-06-18",
-                "capabilities": {},
-                "clientInfo": {"name": "pet-finance-deploy-audit", "version": "1.0.0"},
-            },
-        })
+        initialized = self._mcp_request(
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2025-06-18",
+                    "capabilities": {},
+                    "clientInfo": {"name": "pet-finance-deploy-audit", "version": "1.0.0"},
+                },
+            }
+        )
         handshake = initialized.get("result")
         if (
             not isinstance(handshake, dict)
@@ -159,13 +163,20 @@ class ReadOnlyHttpAdapter:
         ):
             raise ValueError("MCP_HANDSHAKE_REJECTED")
         # Stateless FastMCP transport: the server does not require a session cookie.
-        self._mcp_request({
-            "jsonrpc": "2.0", "method": "notifications/initialized",
-        })
-        reply = self._mcp_request({
-            "jsonrpc": "2.0", "id": 2, "method": "tools/call",
-            "params": {"name": tool, "arguments": arguments},
-        })
+        self._mcp_request(
+            {
+                "jsonrpc": "2.0",
+                "method": "notifications/initialized",
+            }
+        )
+        reply = self._mcp_request(
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {"name": tool, "arguments": arguments},
+            }
+        )
         result = reply.get("result")
         if not isinstance(result, dict) or result.get("isError"):
             raise ValueError("MCP_TOOL_FAILED")
