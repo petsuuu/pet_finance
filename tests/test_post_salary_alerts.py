@@ -329,7 +329,7 @@ def test_dashboard_alerts_do_not_mutate_financial_records(client: TestClient) ->
     assert data["salary"]["earliest_outstanding_due_date"] == "2026-11-25"
     assert data["salary"]["days_until_due"] == 3
     assert data["salary"]["receipt_overdue"] is False
-    assert data["salary"]["unreceived_against_expected"] == "1000"
+    assert Decimal(data["salary"]["unreceived_against_expected"]) == Decimal("1000")
     assert data["salary"]["recurrence_breakdown"]["items"][0]["recording_state"] == ("NOT_RECORDED")
     assert data["follow_up"]["action"] == "CHECK_UPCOMING_SALARY"
     assert data["follow_up"]["read_only"] is True
