@@ -1,53 +1,59 @@
-# PR #55 — Alternativa ao controle Ed25519 da PR #54
+# PR #55 — Alternativa segura para administrador único
 
-Esta proposta usa o mecanismo nativo de **GitHub Environments** para uma
-aprovação humana de execução manual. **Não é assinatura Ed25519 independente**,
-e não deve ser tratada como substituição criptograficamente equivalente.
+**Decisão:** o projeto tem somente um administrador autorizado. Portanto,
+não alegar aprovação independente, separação de funções ou revisão por
+terceiro. A PR #54 com Ed25519 permanece independente e sem alterações.
 
-## Separação de responsabilidades
+## Controle disponível sem Mac ou serviços adicionais
 
-- O workflow `Manual production readiness (no deploy)` é acionado
-  exclusivamente por `workflow_dispatch` e referencia `environment: production`.
-- O GitHub Environment deve ter **required reviewers** e **prevent self-review**.
-  A mera existência do ambiente não prova que esteja protegido.
-- O verificador `github_release_gate.py` consulta a configuração do
-  ambiente pelo GitHub API, e bloqueia quando a política não existe, não pode
-  ser consultada, está sem aprovadores, permite autoaprovação ou a execução
-  não vem de um disparo manual na `main`.
-- O workflow **não publica**, não guarda credenciais de produção, não
-  consulta dados financeiros e não fornece um token de deploy.
-- O teste automatizado `tests/test_github_release_gate.py` cobre
-  configurações válidas e negativas, mas não equivale à aprovação real.
+- O workflow `Solo manual release readiness (no deploy)` aceita apenas
+  disparo manual `workflow_dispatch`, na `main` e pelo ator `petsuuu`.
+- O proprietário digita o SHA completo de 40 caracteres e a confirmação
+  exata `VERIFY READINESS <sha>`. O script confere esse SHA com
+  `GITHUB_SHA` e com o `git rev-parse HEAD` do checkout.
+- Os inputs e a identidade do executor fazem parte do histórico da
+  execução do GitHub Actions. O resultado `PASS` confirma apenas
+  **intenção explícita de executar a verificação de prontidão**.
+- O workflow usa somente `contents: read`, sem ambiente `production`,
+  sem tokens Render/MCP, sem transferência financeira e sem capacidade
+  de fazer merge ou deploy.
+- Qualquer branch diferente de `main`, SHA divergente, ator inesperado,
+  confirmação incorreta ou evento não manual resulta em `BLOCKED`.
+- Para proteger contra ações não autorizadas por pessoas com acesso
+  à conta, proteger MFA/passkeys e limitar quem pode disparar workflows.
 
-## Passos administrativos antes de ativar
+## Limites de segurança
 
-1. Confirmar se o repositório e o plano disponibilizam as regras de
-   proteção de ambientes exigidas. Algumas combinações de visibilidade
-   e plano não suportam required reviewers. **Sem proteção: BLOCKED**.
-2. Configurar ambiente `production` com required reviewers confiáveis e
-   prevent self-review; limitar branches de deployment à `main`.
-   Se a conta não tiver outro aprovador autorizado, **não retirar a
-   exigência** apenas para passar no gate.
-3. Confirmar proteção de branch e regras de revisão no GitHub.
-4. Somente após revisão/merge autorizado desta PR, uma execução manual
-   na `main` pode avaliar a política e demonstrar o gate.
-5. Usar separadamente o teste HTTP/MCP autenticado de privilégio mínimo;
-   comparar baseline financeiro recente antes e depois de qualquer deploy
-   **explicitamente autorizado**, mantendo Render Auto-Deploy OFF.
+Isto **NÃO** é aprovação independente, assinatura Ed25519, proteção contra
+comprometimento da conta GitHub, nem substitui aprovação humana
+separada e explícita antes de um deploy. Um mesmo administrador com
+permissões completas pode alterar código e configurações de segurança;
+a auditoria do GitHub registra os eventos, mas não cria separação
+criptográfica de papéis. Os inputs são conferências de intenção,
+não segredos nem fatores adicionais de autenticação.
 
-## Limitações e decisão
+Não depender de `required_reviewers` ou `prevent_self_review` para
+o cenário solo: a configuração inicialmente proposta na PR #55
+exigia um segundo revisor e impediria a sua utilização legítima.
 
-`PASS` significa **apenas política de ambiente observada**;
-não prova que quem aprovou o workflow tinha autorização de negócio,
-não atesta a integridade financeira, não substitui validação do MCP,
-não registra aprovação Ed25519 e não autoriza deploy.
-Um ambiente criado sem revisores não é proteção. Falhas da API e
-permissões insuficientes são sempre BLOCKED.
+## Ainda necessários antes de publicação
 
-Como não há configuração administrativa de environment disponível
-nos conectores desta sessão, não foi ativada proteção real de produção
-nem configurado qualquer segredo ou deploy. A PR #54 permanece
-intocada, aberta e independente para comparação.
+1. CI completo aprovado na `main` e commit exato selecionado.
+2. Comprovação do teste HTTP/MCP autenticado de leitura real, com
+   credenciais temporárias, escopo mínimo e sem logs sensíveis.
+3. Auto-Deploy OFF verificado e baseline financeiro novo imediatamente
+   antes da publicação, com qualidade OK.
+4. Autorização específica e explícita do usuário para **cada** merge
+   e **cada** deploy manual, independentemente de um `PASS` de readiness.
+5. Pós-deploy: comparação integral de contas, saldos, transações ativas,
+   arquivadas e auditoria, com resultado `MATCH`; qualquer divergência
+   exige parar e investigar sem alterar dados.
 
-**Estado recomendado:** PR #55 em Draft; NO-GO para deploy até configurar
-e auditar a proteção de ambiente e cumprir os demais gates operacionais.
+O fluxo de readiness somente estará visível para disparo manual na
+`main` depois de merge autorizado do arquivo de workflow. Este projeto
+não possui atualmente um executor conectado seguro para rodar o teste
+HTTP autenticado com segredos. Sem esse teste, o parecer operacional
+permanece **NO-GO para publicação**.
+
+**Status:** a PR #55 pode ser homologada tecnicamente e permanece
+Draft até a revisão; nenhum merge ou deploy foi executado.
