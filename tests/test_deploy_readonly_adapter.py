@@ -45,13 +45,18 @@ def test_adapter_uses_exact_hosts_methods_and_allowed_tools() -> None:
         body = __import__("json").loads(request.content)
         assert body["method"] == "tools/call"
         assert body["params"]["name"] in {
-            "plugin_info", "financial_audit_snapshot", "compare_financial_audit"
+            "plugin_info",
+            "financial_audit_snapshot",
+            "compare_financial_audit",
         }
         assert request.headers["MCP-Protocol-Version"] == "2025-11-25"
         return httpx.Response(
             200,
-            json={"jsonrpc": "2.0", "id": 1,
-                  "result": {"isError": False, "structuredContent": {"read_only": True}}},
+            json={
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {"isError": False, "structuredContent": {"read_only": True}},
+            },
         )
 
     source = adapter(respond)
@@ -83,8 +88,10 @@ def test_adapter_uses_exact_hosts_methods_and_allowed_tools() -> None:
 def test_adapter_rejects_unsafe_configuration(url: str) -> None:
     with pytest.raises(ValueError):
         ReadOnlyHttpAdapter(
-            repo="petsuuu/pet_finance", service_id="srv-test123",
-            render_token="not-a-real-secret", mcp_url=url,
+            repo="petsuuu/pet_finance",
+            service_id="srv-test123",
+            render_token="not-a-real-secret",
+            mcp_url=url,
             mcp_oauth_token="not-a-real-secret",
         )
 
