@@ -130,7 +130,7 @@ def monthly_dashboard(
         "envelope_projections": envelopes,
         "envelope_allocation_preview": allocation,
         "post_salary_envelope_alerts": post_salary_envelope_alerts(
-            income_status, envelopes, allocation
+            income_status, envelopes, allocation, as_of=as_of
         ),
         "safety_margin": safety_margin,
         "free_after_commitments": balance - commitments - safety_margin,
