@@ -19,11 +19,14 @@ obtida por um processo separado.
 O protocolo MCP usa POST como transporte, mas as três ferramentas
 autorizadas são somente leitura. O adaptador não envia tokens de um provedor
 a outro e recusa redirecionamentos HTTP. Configure o cliente com URLs HTTPS,
-identidade de repositório e serviço confirmada e tokens obtidos de um gerenciador
+identidade de repositório e serviço confirmada, origem MCP fixada em uma origem HTTPS confiável e tokens obtidos de um gerenciador
 de segredos seguro. Os testes usam `httpx.MockTransport`; **não houve
 integração end-to-end autenticada real com os três provedores**. O adaptador
-pressupõe transporte MCP com resposta `application/json` e
-`structuredContent`; outros transportes precisam de integração validada
+inicia uma sessão MCP de protocolo `2025-06-18` antes de executar ferramentas
+aprovadas. Exige respostas `application/json` e `structuredContent` e recusa
+redirecionamentos, identificadores incorretos e negociação divergente.
+A compatibilidade ponta a ponta com o servidor publicado ainda precisa de
+integração autenticada validada
 antes do uso operacional.
 
 ## Cofre de evidências
@@ -50,8 +53,14 @@ alfanuméricos, hífen e sublinhado). São registrados de forma autenticada
 dentro do envelope criptografado, junto a serviço, commit, versão do plugin
 e snapshot integral.
 
-Essas referências **não comprovam que a autorização ocorreu**: a aprovação
-e sua trilha de auditoria devem ser validadas por um sistema independente.
+Essas referências **não bastam para aprovar**: um comprovante externo assinado
+com Ed25519, de uma autoridade cuja chave pública tenha sido distribuída por
+canal confiável, deve comprovar autorização específica para serviço, commit,
+versão, execução e janela temporal. O orquestrador valida criptograficamente
+o comprovante **antes de consultar qualquer fonte** e novamente no pós-deploy.
+A chave privada da autoridade deve permanecer fora deste aplicativo, do cofre
+e da PR. Um comprovante válido não dispensa a verificação operacional de que
+a aprovação se refere a uma publicação manual autorizada.
 A rotina bloqueia snapshots pré-deploy com mais de cinco minutos, evidências
 pré-deploy usadas mais de duas horas depois e comparações pós-deploy com
 mais de cinco minutos. Horários futuros e sem fuso são rejeitados.
@@ -62,6 +71,7 @@ from pathlib import Path
 
 from app.services.deploy_orchestrator import prepare_predeploy, verify_postdeploy
 from app.services.deploy_readonly_adapter import ReadOnlyHttpAdapter
+from app.services.deploy_approval import SignedApprovalVerifier
 
 source = ReadOnlyHttpAdapter(
     repo="petsuuu/pet_finance",
@@ -69,8 +79,11 @@ source = ReadOnlyHttpAdapter(
     render_token=render_token_obtido_com_segurança,
     mcp_url="https://host-confirmado.example/mcp",
     mcp_oauth_token=oauth_token_obtido_com_segurança,
+    trusted_mcp_origin="https://host-confirmado.example",
     github_token=github_token_obtido_com_segurança,
 )
+approval_verifier = SignedApprovalVerifier(chave_publica_ed25519_confiavel)
+# approval_receipt_assinado é obtido da autoridade externa, nunca gerado pelo operador.
 pre = prepare_predeploy(
     source,
     service_id="srv-confirmado",
@@ -78,6 +91,8 @@ pre = prepare_predeploy(
     plugin_version="0.4.0",
     authorization_id="approval-externo-0001",
     execution_id="execution-externa-0001",
+    approval_receipt=approval_receipt_assinado,
+    approval_verifier=approval_verifier,
     vault_dir=Path("/cofre-local-privado/auditorias"),
     encryption_key=chave_fernet_externa,
 )
@@ -91,6 +106,7 @@ post = verify_postdeploy(
     plugin_version="0.4.0",
     authorization_id="approval-externo-0001",
     execution_id="execution-externa-0001",
+    approval_verifier=approval_verifier,
 )
 ```
 
