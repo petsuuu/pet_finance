@@ -109,7 +109,7 @@ def test_mcp_plugin_version_is_semver_traceable_and_read_only(
     project_root = Path(__file__).resolve().parents[1]
     package = tomllib.loads((project_root / "pyproject.toml").read_text())
     expected = package["project"]["version"]
-    assert re.fullmatch(r"[0-9]+\\.[0-9]+\\.[0-9]+", expected)
+    assert re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", expected)
     assert package_version("pet-finance") == expected
     assert f"## [{expected}]" in (project_root / "CHANGELOG.md").read_text()
 
