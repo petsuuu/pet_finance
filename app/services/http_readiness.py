@@ -108,8 +108,7 @@ def main() -> int:
         return 1
     print("PASS: public HTTP/OAuth and unauthenticated MCP rejection only")
     print(
-        "NOT VERIFIED: authenticated HTTP/MCP access, new MCP tools, "
-        "financial integrity or deploy"
+        "NOT VERIFIED: authenticated HTTP/MCP access, new MCP tools, financial integrity or deploy"
     )
     return 0
 
