@@ -837,7 +837,9 @@ def test_mcp_financial_snapshot_and_comparison_are_authenticated_and_read_only(
     before_history = mcp_client.get("/api/v1/audit/transactions", headers=headers).json()
 
     snapshot = rpc(
-        mcp_client, token, "tools/call",
+        mcp_client,
+        token,
+        "tools/call",
         {"name": "financial_audit_snapshot", "arguments": {}},
     ).json()["result"]
     assert not snapshot.get("isError"), snapshot
@@ -847,7 +849,9 @@ def test_mcp_financial_snapshot_and_comparison_are_authenticated_and_read_only(
     assert len(baseline["snapshot_hash"]) == 64
 
     compared = rpc(
-        mcp_client, token, "tools/call",
+        mcp_client,
+        token,
+        "tools/call",
         {"name": "compare_financial_audit", "arguments": {"baseline": baseline}},
     ).json()["result"]
     assert not compared.get("isError"), compared
@@ -857,7 +861,12 @@ def test_mcp_financial_snapshot_and_comparison_are_authenticated_and_read_only(
     assert mcp_client.get("/api/v1/accounts", headers=headers).json() == before_accounts
     assert mcp_client.get("/api/v1/transactions", headers=headers).json() == before_transactions
     assert mcp_client.get("/api/v1/audit/transactions", headers=headers).json() == before_history
-    assert rpc(
-        mcp_client, "invalid", "tools/call",
-        {"name": "financial_audit_snapshot", "arguments": {}},
-    ).status_code == 401
+    assert (
+        rpc(
+            mcp_client,
+            "invalid",
+            "tools/call",
+            {"name": "financial_audit_snapshot", "arguments": {}},
+        ).status_code
+        == 401
+    )
