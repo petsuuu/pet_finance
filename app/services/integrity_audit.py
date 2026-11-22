@@ -14,8 +14,8 @@ from sqlalchemy import select
 from app.services.ledger import Ledger
 from app.services.preventive_audit import (
     classification_findings,
-    pending_reference_findings,
     pending_recurrence_duplicate_groups,
+    pending_reference_findings,
     similar_description_duplicates,
 )
 
