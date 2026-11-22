@@ -379,18 +379,19 @@ def test_predeploy_rejects_forged_or_missing_approval(tmp_path: Path) -> None:
     forged["claims"]["approved"] = False
     from app.services.deploy_orchestrator import prepare_predeploy
 
-    data = {
-        "service_id": "srv-test",
-        "commit": SHA,
-        "plugin_version": "0.4.0",
-        "authorization_id": AUTHORIZATION,
-        "execution_id": EXECUTION,
-        "approval_verifier": VERIFIER,
-        "vault_dir": tmp_path / "private",
-        "encryption_key": key,
-        "now": NOW,
-    }
-    result = prepare_predeploy(source, approval_receipt=forged, **data)
+    result = prepare_predeploy(
+        source,
+        service_id="srv-test",
+        commit=SHA,
+        plugin_version="0.4.0",
+        authorization_id=AUTHORIZATION,
+        execution_id=EXECUTION,
+        approval_receipt=forged,
+        approval_verifier=VERIFIER,
+        vault_dir=tmp_path / "private",
+        encryption_key=key,
+        now=NOW,
+    )
     assert result["issues"] == ["AUTHORIZATION_NOT_VERIFIED"]
     assert source.calls == []
     assert not (tmp_path / "private").exists()
