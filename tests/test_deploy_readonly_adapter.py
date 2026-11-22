@@ -15,6 +15,7 @@ def adapter(handler: Any) -> ReadOnlyHttpAdapter:
         service_id="srv-test123",
         render_token="render-secret-token",
         mcp_url="https://pet-finance.example/mcp",
+        trusted_mcp_origin="https://pet-finance.example",
         mcp_oauth_token="mcp-secret-token",
         github_token="github-secret-token",
         client=client,
@@ -43,18 +44,27 @@ def test_adapter_uses_exact_hosts_methods_and_allowed_tools() -> None:
         assert request.method == "POST"
         assert request.url.path == "/mcp"
         body = __import__("json").loads(request.content)
+        if body["method"] == "initialize":
+            assert body["params"]["protocolVersion"] == "2025-06-18"
+            return httpx.Response(200, json={
+                "jsonrpc": "2.0", "id": 1,
+                "result": {"protocolVersion": "2025-06-18", "capabilities": {},
+                           "serverInfo": {"name": "Pet Finance", "version": "0.4.0"}},
+            })
+        if body["method"] == "notifications/initialized":
+            return httpx.Response(202)
         assert body["method"] == "tools/call"
         assert body["params"]["name"] in {
             "plugin_info",
             "financial_audit_snapshot",
             "compare_financial_audit",
         }
-        assert request.headers["MCP-Protocol-Version"] == "2025-11-25"
+        assert request.headers["MCP-Protocol-Version"] == "2025-06-18"
         return httpx.Response(
             200,
             json={
                 "jsonrpc": "2.0",
-                "id": 1,
+                "id": 2,
                 "result": {"isError": False, "structuredContent": {"read_only": True}},
             },
         )
@@ -70,6 +80,12 @@ def test_adapter_uses_exact_hosts_methods_and_allowed_tools() -> None:
         ("GET", "api.github.com", "Bearer github-secret-token"),
         ("GET", "api.render.com", "Bearer render-secret-token"),
         ("GET", "api.render.com", "Bearer render-secret-token"),
+        ("POST", "pet-finance.example", "Bearer mcp-secret-token"),
+        ("POST", "pet-finance.example", "Bearer mcp-secret-token"),
+        ("POST", "pet-finance.example", "Bearer mcp-secret-token"),
+        ("POST", "pet-finance.example", "Bearer mcp-secret-token"),
+        ("POST", "pet-finance.example", "Bearer mcp-secret-token"),
+        ("POST", "pet-finance.example", "Bearer mcp-secret-token"),
         ("POST", "pet-finance.example", "Bearer mcp-secret-token"),
         ("POST", "pet-finance.example", "Bearer mcp-secret-token"),
         ("POST", "pet-finance.example", "Bearer mcp-secret-token"),
@@ -92,6 +108,7 @@ def test_adapter_rejects_unsafe_configuration(url: str) -> None:
             service_id="srv-test123",
             render_token="not-a-real-secret",
             mcp_url=url,
+            trusted_mcp_origin="https://pet-finance.example",
             mcp_oauth_token="not-a-real-secret",
         )
 
@@ -112,3 +129,44 @@ def test_adapter_does_not_follow_redirects() -> None:
 
     with pytest.raises(httpx.HTTPStatusError):
         adapter(respond).plugin_info()
+
+
+def test_origin_mismatch_rejected_before_any_network_call() -> None:
+    with pytest.raises(ValueError, match="INVALID_READ_ONLY_ADAPTER_CONFIGURATION"):
+        ReadOnlyHttpAdapter(
+            repo="petsuuu/pet_finance", service_id="srv-test123",
+            render_token="render-secret",
+            mcp_url="https://not-the-authorized-host.example/mcp",
+            trusted_mcp_origin="https://pet-finance.example",
+            mcp_oauth_token="mcp-secret",
+        )
+
+
+def test_mcp_handshake_rejects_wrong_protocol() -> None:
+    def reply(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={
+            "jsonrpc": "2.0", "id": 1,
+            "result": {"protocolVersion": "2025-03-26", "capabilities": {}},
+        })
+
+    with pytest.raises(ValueError, match="MCP_HANDSHAKE_REJECTED"):
+        adapter(reply).plugin_info()
+
+
+def test_mcp_requires_structured_payload() -> None:
+    def reply(request: httpx.Request) -> httpx.Response:
+        body = __import__("json").loads(request.content)
+        if body["method"] == "initialize":
+            return httpx.Response(200, json={
+                "jsonrpc": "2.0", "id": 1,
+                "result": {"protocolVersion": "2025-06-18", "capabilities": {}},
+            })
+        if body["method"] == "notifications/initialized":
+            return httpx.Response(202)
+        return httpx.Response(200, json={
+            "jsonrpc": "2.0", "id": 2,
+            "result": {"isError": False, "content": [{"type": "text", "text": "ok"}]},
+        })
+
+    with pytest.raises(ValueError, match="MCP_STRUCTURED_RESULT_REQUIRED"):
+        adapter(reply).plugin_info()
