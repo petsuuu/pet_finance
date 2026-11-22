@@ -18,7 +18,8 @@ from sqlalchemy import select, text
 from app.services.data_quality import data_quality_dashboard
 from app.services.ledger import Ledger
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+BUCKET_COUNT = 16
 SECTION_NAMES = (
     "accounts",
     "account_balances",
@@ -65,6 +66,24 @@ def _read_rows(service: Ledger, name: str, *, archived: bool | None = None) -> l
     return rows
 
 
+def _bucket_manifest(rows: list[dict[str, Any]], *, key: str) -> dict[str, dict[str, Any]]:
+    """Partition rows by stable identifier for targeted, non-sensitive diagnostics.
+
+    Each bucket has a deterministic content hash. Collisions only affect
+    diagnostic granularity: the full section SHA-256 still detects every change.
+    """
+    buckets: dict[str, list[dict[str, Any]]] = {
+        str(index): [] for index in range(BUCKET_COUNT)
+    }
+    for row in rows:
+        index = hashlib.sha256(str(row[key]).encode("utf-8")).digest()[0] % BUCKET_COUNT
+        buckets[str(index)].append(row)
+    return {
+        index: {"count": len(items), "sha256": _digest(items)}
+        for index, items in buckets.items()
+    }
+
+
 def financial_snapshot(service: Ledger) -> dict[str, Any]:
     """A single PostgreSQL MVCC snapshot for balances, transactions and audit logs.
 
@@ -83,7 +102,12 @@ def financial_snapshot(service: Ledger) -> dict[str, Any]:
     }
     for section in SECTION_NAMES:
         rows = data[section]
-        sections[section] = {"count": len(rows), "sha256": _digest(rows)}
+        key = "account_id" if section == "account_balances" else "id"
+        sections[section] = {
+            "count": len(rows),
+            "sha256": _digest(rows),
+            "buckets": _bucket_manifest(rows, key=key),
+        }
     balances = [
         {
             "account_id": row["account_id"],
@@ -113,7 +137,8 @@ def financial_snapshot(service: Ledger) -> dict[str, Any]:
         "read_only": True,
         "basis": (
             "Repeatable-read, read-only PostgreSQL transaction. Full rows are "
-            "hashed locally, including inactive accounts, excluded accounts, "
+            "hashed locally in full and in 16 stable identifier buckets, "
+            "including inactive accounts, excluded accounts, "
             "archived transactions and full audit history. Hashes are not proof "
             "of legitimate changes or independent bank settlement."
         ),
@@ -133,11 +158,30 @@ def _validate_baseline(baseline: dict[str, Any]) -> None:
         if (
             not isinstance(value, dict)
             or not isinstance(value.get("count"), int)
+            or isinstance(value["count"], bool)
             or value["count"] < 0
             or not isinstance(value.get("sha256"), str)
             or len(value["sha256"]) != 64
         ):
             raise HTTPException(422, "Invalid audit section digest")
+        buckets = value.get("buckets")
+        if not isinstance(buckets, dict) or set(buckets) != {
+            str(index) for index in range(BUCKET_COUNT)
+        }:
+            raise HTTPException(422, "Invalid audit bucket manifest")
+        for bucket in buckets.values():
+            if (
+                not isinstance(bucket, dict)
+                or set(bucket) != {"count", "sha256"}
+                or not isinstance(bucket["count"], int)
+                or isinstance(bucket["count"], bool)
+                or bucket["count"] < 0
+                or not isinstance(bucket["sha256"], str)
+                or len(bucket["sha256"]) != 64
+            ):
+                raise HTTPException(422, "Invalid audit bucket digest")
+        if sum(bucket["count"] for bucket in buckets.values()) != value["count"]:
+            raise HTTPException(422, "Audit bucket counts do not add up")
     core = {
         "schema_version": baseline["schema_version"],
         "hash_algorithm": baseline["hash_algorithm"],
@@ -164,6 +208,14 @@ def compare_financial_snapshots(
             "before_sha256": baseline["sections"][name]["sha256"],
             "after_sha256": current["sections"][name]["sha256"],
             "matches": baseline["sections"][name] == current["sections"][name],
+            "changed_buckets": [
+                bucket
+                for bucket in sorted(
+                    baseline["sections"][name]["buckets"], key=int
+                )
+                if baseline["sections"][name]["buckets"][bucket]
+                != current["sections"][name]["buckets"][bucket]
+            ],
         }
         for name in SECTION_NAMES
     ]
