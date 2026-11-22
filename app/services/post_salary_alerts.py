@@ -59,6 +59,72 @@ def _salary_follow_up(
     }
 
 
+def _salary_receipt_reconciliation(salaries: list[dict[str, Any]]) -> dict[str, Any]:
+    """Keep deficits separate: extra payment on one rule cannot settle another."""
+    items: list[dict[str, Any]] = []
+    for row in salaries:
+        expected = Decimal(row["expected_amount"])
+        posted = Decimal(row["received_amount"])
+        pending = Decimal(row["pending_amount"])
+        raw_due = row.get("due_date")
+        due = (
+            raw_due
+            if isinstance(raw_due, date)
+            else date.fromisoformat(str(raw_due))
+            if raw_due is not None
+            else None
+        )
+        unreceived = max(ZERO, expected - posted)
+        items.append(
+            {
+                "recurrence_id": (
+                    str(row["recurrence_id"]) if row.get("recurrence_id") is not None else None
+                ),
+                "description": str(row["description"]),
+                "due_date": due,
+                "expected": expected,
+                "posted": posted,
+                "pending_not_available": pending,
+                "unreceived": unreceived,
+                "not_recorded_after_pending": max(ZERO, unreceived - pending),
+                "posted_above_expected": max(ZERO, posted - expected),
+                "recording_state": (
+                    "FULLY_POSTED"
+                    if unreceived == ZERO
+                    else "PARTIALLY_POSTED"
+                    if posted > ZERO
+                    else "PENDING_ONLY"
+                    if pending > ZERO
+                    else "NOT_RECORDED"
+                ),
+            }
+        )
+    items.sort(
+        key=lambda item: (
+            item["due_date"] or date.max,
+            item["description"],
+            item["recurrence_id"] or "",
+        )
+    )
+    return {
+        "items": items,
+        "unreceived_total": sum((row["unreceived"] for row in items), ZERO),
+        "not_recorded_after_pending_total": sum(
+            (row["not_recorded_after_pending"] for row in items), ZERO
+        ),
+        "posted_above_expected_total": sum(
+            (row["posted_above_expected"] for row in items), ZERO
+        ),
+        "all_fully_posted": bool(items)
+        and all(row["unreceived"] == ZERO for row in items),
+        "basis": (
+            "Amounts are reconciled per salary recurrence without offsetting "
+            "missing records against excess posted on another rule. POSTED is "
+            "ledger evidence, not verified bank settlement; PENDING is not cash."
+        ),
+    }
+
+
 def post_salary_envelope_alerts(
     income_report: dict[str, Any],
     envelope_report: dict[str, Any],
@@ -78,17 +144,13 @@ def post_salary_envelope_alerts(
     received = sum((Decimal(row["received_amount"]) for row in salaries), ZERO)
     expected = sum((Decimal(row["expected_amount"]) for row in salaries), ZERO)
     pending = sum((Decimal(row["pending_amount"]) for row in salaries), ZERO)
+    reconciliation = _salary_receipt_reconciliation(salaries)
 
-    outstanding_due_dates: list[date] = []
-    for row in salaries:
-        if Decimal(row["received_amount"]) >= Decimal(row["expected_amount"]):
-            continue
-        raw_due = row.get("due_date")
-        if raw_due is None:
-            continue
-        outstanding_due_dates.append(
-            raw_due if isinstance(raw_due, date) else date.fromisoformat(str(raw_due))
-        )
+    outstanding_due_dates = [
+        row["due_date"]
+        for row in reconciliation["items"]
+        if row["unreceived"] > ZERO and row["due_date"] is not None
+    ]
     earliest_due = min(outstanding_due_dates, default=None)
     days_until_due = (
         (earliest_due - as_of).days if earliest_due is not None and as_of is not None else None
@@ -96,7 +158,7 @@ def post_salary_envelope_alerts(
 
     if not salaries:
         salary_state = "SALARY_RULE_NOT_IDENTIFIED"
-    elif received >= expected:
+    elif reconciliation["all_fully_posted"]:
         salary_state = "SALARY_RECORDED"
     elif received > ZERO:
         salary_state = "PARTIALLY_RECORDED"
@@ -155,7 +217,11 @@ def post_salary_envelope_alerts(
             "expected": expected,
             "recorded_received": received,
             "recorded_pending": pending,
-            "not_recorded_against_expected": max(ZERO, expected - received - pending),
+            "not_recorded_against_expected": reconciliation[
+                "not_recorded_after_pending_total"
+            ],
+            "unreceived_against_expected": reconciliation["unreceived_total"],
+            "recurrence_breakdown": reconciliation,
             "bank_deposit_verified": False,
             "earliest_outstanding_due_date": earliest_due,
             "days_until_due": days_until_due,
@@ -177,7 +243,9 @@ def post_salary_envelope_alerts(
         "basis": (
             "Read-only planning alerts. Salary evidence requires eligible posted "
             "income linked to a salary-named recurrence; it does not verify a bank "
-            "deposit. The follow-up is informational and does not initiate "
+            "deposit. Each salary recurrence is reconciled separately so "
+            "overpayments on one rule do not hide another rule's shortfall. "
+            "The follow-up is informational and does not initiate "
             "notifications. A scheduled salary due date is not proof of receipt. "
             "Recorded-cash distribution remains capped by the global "
             "safety and savings plan; conditional income never becomes available "
