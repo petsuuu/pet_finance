@@ -118,10 +118,15 @@ def test_new_endpoint_is_read_only_and_requires_authentication(client: TestClien
     assert client.get("/api/v1/transactions").json() == before_transactions
     assert client.get("/api/v1/audit/transactions").json() == before_audit
     assert (
-        client.get("/api/v1/dashboard/financial-quality", params=params,
-                   headers={"Authorization": ""}).status_code == 401
+        client.get(
+            "/api/v1/dashboard/financial-quality", params=params, headers={"Authorization": ""}
+        ).status_code
+        == 401
     )
-    assert client.get(
-        "/api/v1/dashboard/financial-quality",
-        params={**params, "month": 13},
-    ).status_code == 422
+    assert (
+        client.get(
+            "/api/v1/dashboard/financial-quality",
+            params={**params, "month": 13},
+        ).status_code
+        == 422
+    )
