@@ -2,6 +2,7 @@
 
 from datetime import date
 from decimal import Decimal
+from typing import Any
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
@@ -10,8 +11,8 @@ from app.services.preventive_audit import classification_findings, similar_descr
 
 
 def transaction(
-    description: str, *, category_id: object = None, status: str = "POSTED"
-) -> dict[str, object]:
+    description: str, *, category_id: Any = None, status: str = "POSTED"
+) -> dict[str, Any]:
     return {
         "id": uuid4(),
         "type": "EXPENSE",
@@ -73,7 +74,9 @@ def test_similar_descriptions_are_candidates_not_confirmed_errors() -> None:
     original = [dict(item) for item in rows]
     findings = similar_description_duplicates(rows)
     assert len(findings) == 2
-    assert all(item["reason"] == "same_account_date_amount_similar_description" for item in findings)
+    assert all(
+        item["reason"] == "same_account_date_amount_similar_description" for item in findings
+    )
     assert rows == original
 
 
