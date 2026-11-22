@@ -13,7 +13,7 @@ import re
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -43,7 +43,7 @@ class MacKeychain:
         if sys.platform != "darwin":
             raise RuntimeError("MACOS_REQUIRED")
         self._api = ctypes.CDLL("/System/Library/Frameworks/Security.framework/Security")
-        self._add = self._api.SecKeychainAddGenericPassword
+        self._add: Any = self._api.SecKeychainAddGenericPassword
         self._add.argtypes = [
             ctypes.c_void_p,
             ctypes.c_uint32,
@@ -55,7 +55,7 @@ class MacKeychain:
             ctypes.c_void_p,
         ]
         self._add.restype = ctypes.c_int32
-        self._find = self._api.SecKeychainFindGenericPassword
+        self._find: Any = self._api.SecKeychainFindGenericPassword
         self._find.argtypes = [
             ctypes.c_void_p,
             ctypes.c_uint32,
@@ -67,7 +67,7 @@ class MacKeychain:
             ctypes.c_void_p,
         ]
         self._find.restype = ctypes.c_int32
-        self._free = self._api.SecKeychainItemFreeContent
+        self._free: Any = self._api.SecKeychainItemFreeContent
         self._free.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
         self._free.restype = ctypes.c_int32
 
