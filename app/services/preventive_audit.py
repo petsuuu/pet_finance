@@ -116,3 +116,37 @@ def pending_reference_findings(
                 }
             )
     return sorted(findings, key=lambda item: (item["transaction_id"], item["reason"]))
+
+
+def pending_recurrence_duplicate_groups(
+    transactions: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Flag multiple pending occurrences of one recurrence in the same calendar month.
+
+    Date/amount/description can vary following legitimate edits or rescheduling,
+    so these groups remain review candidates, never automated corrections.
+    """
+    buckets: dict[tuple[Any, int, int], list[dict[str, Any]]] = defaultdict(list)
+    for movement in transactions:
+        recurrence_id = movement.get("recurrence_id")
+        if movement["status"] != "PENDING" or recurrence_id is None:
+            continue
+        due = movement["transaction_date"]
+        buckets[(recurrence_id, due.year, due.month)].append(movement)
+
+    findings: list[dict[str, Any]] = []
+    for (recurrence_id, year, month), rows in buckets.items():
+        if len(rows) < 2:
+            continue
+        rows.sort(key=lambda row: str(row["id"]))
+        findings.append(
+            {
+                "recurrence_id": str(recurrence_id),
+                "month": f"{year:04d}-{month:02d}",
+                "transaction_ids": [str(row["id"]) for row in rows],
+                "dates": [str(row["transaction_date"]) for row in rows],
+                "reason": "multiple_pending_occurrences_same_recurrence_month",
+                "requires_review": True,
+            }
+        )
+    return sorted(findings, key=lambda row: (row["month"], row["recurrence_id"]))
