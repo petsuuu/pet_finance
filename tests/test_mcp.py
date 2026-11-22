@@ -935,10 +935,7 @@ def test_mcp_financial_quality_is_authenticated_and_non_mutating(
     assert report["read_only"] is True
     assert report["integrity_status"] != "CRITICAL"
     assert report["risk_status"] == "REVIEW"
-    assert any(
-        alert["code"] == "NEGATIVE_ENVELOPE_BALANCE"
-        for alert in report["financial_alerts"]
-    )
+    assert any(alert["code"] == "NEGATIVE_ENVELOPE_BALANCE" for alert in report["financial_alerts"])
     assert requests == [
         (
             "GET",
