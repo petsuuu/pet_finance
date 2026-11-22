@@ -42,21 +42,28 @@ class MacKeychain:
     def __init__(self) -> None:
         if sys.platform != "darwin":
             raise RuntimeError("MACOS_REQUIRED")
-        self._api = ctypes.CDLL(
-            "/System/Library/Frameworks/Security.framework/Security"
-        )
+        self._api = ctypes.CDLL("/System/Library/Frameworks/Security.framework/Security")
         self._add = self._api.SecKeychainAddGenericPassword
         self._add.argtypes = [
-            ctypes.c_void_p, ctypes.c_uint32, ctypes.c_char_p,
-            ctypes.c_uint32, ctypes.c_char_p, ctypes.c_uint32,
-            ctypes.c_void_p, ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_uint32,
+            ctypes.c_char_p,
+            ctypes.c_uint32,
+            ctypes.c_char_p,
+            ctypes.c_uint32,
+            ctypes.c_void_p,
+            ctypes.c_void_p,
         ]
         self._add.restype = ctypes.c_int32
         self._find = self._api.SecKeychainFindGenericPassword
         self._find.argtypes = [
-            ctypes.c_void_p, ctypes.c_uint32, ctypes.c_char_p,
-            ctypes.c_uint32, ctypes.c_char_p,
-            ctypes.POINTER(ctypes.c_uint32), ctypes.POINTER(ctypes.c_void_p),
+            ctypes.c_void_p,
+            ctypes.c_uint32,
+            ctypes.c_char_p,
+            ctypes.c_uint32,
+            ctypes.c_char_p,
+            ctypes.POINTER(ctypes.c_uint32),
+            ctypes.POINTER(ctypes.c_void_p),
             ctypes.c_void_p,
         ]
         self._find.restype = ctypes.c_int32
@@ -69,8 +76,14 @@ class MacKeychain:
             raise ValueError("INVALID_SEED_LENGTH")
         buf = ctypes.create_string_buffer(seed)
         status = self._add(
-            None, len(SERVICE), SERVICE, len(ACCOUNT), ACCOUNT,
-            len(seed), ctypes.cast(buf, ctypes.c_void_p), None,
+            None,
+            len(SERVICE),
+            SERVICE,
+            len(ACCOUNT),
+            ACCOUNT,
+            len(seed),
+            ctypes.cast(buf, ctypes.c_void_p),
+            None,
         )
         if status != 0:
             # Duplicate item (-25299) deliberately fails: never overwrite a key.
@@ -80,8 +93,14 @@ class MacKeychain:
         length = ctypes.c_uint32()
         pointer = ctypes.c_void_p()
         status = self._find(
-            None, len(SERVICE), SERVICE, len(ACCOUNT), ACCOUNT,
-            ctypes.byref(length), ctypes.byref(pointer), None,
+            None,
+            len(SERVICE),
+            SERVICE,
+            len(ACCOUNT),
+            ACCOUNT,
+            ctypes.byref(length),
+            ctypes.byref(pointer),
+            None,
         )
         if status != 0:
             raise RuntimeError("KEYCHAIN_ITEM_UNAVAILABLE")
@@ -95,9 +114,13 @@ class MacKeychain:
 
 
 def public_key_bytes(seed: bytes) -> bytes:
-    return Ed25519PrivateKey.from_private_bytes(seed).public_key().public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw,
+    return (
+        Ed25519PrivateKey.from_private_bytes(seed)
+        .public_key()
+        .public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
     )
 
 
