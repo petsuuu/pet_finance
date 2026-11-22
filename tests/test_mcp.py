@@ -870,3 +870,118 @@ def test_mcp_financial_snapshot_and_comparison_are_authenticated_and_read_only(
         ).status_code
         == 401
     )
+
+
+def test_mcp_financial_quality_is_authenticated_and_non_mutating(
+    mcp_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    identity, code = grant(mcp_client)
+    token = exchange(mcp_client, identity, code).json()["access_token"]
+    tools = rpc(mcp_client, token, "tools/list", {}).json()["result"]["tools"]
+    tool = next(item for item in tools if item["name"] == "financial_quality_dashboard")
+    assert tool["annotations"]["readOnlyHint"] is True
+    assert tool["annotations"]["destructiveHint"] is False
+    assert tool["_meta"]["securitySchemes"][0]["type"] == "oauth2"
+
+    headers = {"Authorization": "Bearer test-token"}
+    account_response = mcp_client.post(
+        "/api/v1/accounts",
+        headers=headers,
+        json={"name": "Não Essenciais", "opening_balance": "10.00"},
+    )
+    assert account_response.status_code == 201
+    account_id = account_response.json()["id"]
+    transaction_response = mcp_client.post(
+        "/api/v1/transactions",
+        headers=headers,
+        json={
+            "type": "EXPENSE",
+            "status": "POSTED",
+            "description": "Cinema",
+            "amount": "20.00",
+            "transaction_date": "2026-11-22",
+            "account_id": account_id,
+            "idempotency_key": "pr57-test-negative-envelope",
+        },
+    )
+    assert transaction_response.status_code == 201, transaction_response.text
+
+    before_accounts = mcp_client.get("/api/v1/accounts", headers=headers).json()
+    before_transactions = mcp_client.get("/api/v1/transactions", headers=headers).json()
+    before_audit = mcp_client.get("/api/v1/audit/transactions", headers=headers).json()
+
+    original = httpx.AsyncClient.request
+    requests: list[tuple[str, str, dict[str, str]]] = []
+
+    async def observe(
+        self: httpx.AsyncClient, method: str, url: str, **kwargs: Any
+    ) -> httpx.Response:
+        if url == "/api/v1/dashboard/financial-quality":
+            requests.append((method, url, dict(kwargs.get("params") or {})))
+        return await original(self, method, url, **kwargs)
+
+    monkeypatch.setattr(httpx.AsyncClient, "request", observe)
+    arguments = {"year": 2026, "month": 11, "as_of": "2026-11-22", "limit": 7}
+    response = rpc(
+        mcp_client,
+        token,
+        "tools/call",
+        {"name": "financial_quality_dashboard", "arguments": arguments},
+    )
+    assert response.status_code == 200, response.text
+    payload = response.json()["result"]
+    assert not payload.get("isError"), payload
+    report = payload["structuredContent"]
+    assert report["read_only"] is True
+    assert report["integrity_status"] != "CRITICAL"
+    assert report["risk_status"] == "REVIEW"
+    assert any(
+        alert["code"] == "NEGATIVE_ENVELOPE_BALANCE"
+        for alert in report["financial_alerts"]
+    )
+    assert requests == [
+        (
+            "GET",
+            "/api/v1/dashboard/financial-quality",
+            {"year": "2026", "month": "11", "as_of": "2026-11-22", "limit": "7"},
+        )
+    ]
+    assert mcp_client.get("/api/v1/accounts", headers=headers).json() == before_accounts
+    assert mcp_client.get("/api/v1/transactions", headers=headers).json() == before_transactions
+    assert mcp_client.get("/api/v1/audit/transactions", headers=headers).json() == before_audit
+    assert (
+        rpc(
+            mcp_client,
+            "invalid",
+            "tools/call",
+            {"name": "financial_quality_dashboard", "arguments": arguments},
+        ).status_code
+        == 401
+    )
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"year": 1999, "month": 11},
+        {"year": 2101, "month": 11},
+        {"year": 2026, "month": 0},
+        {"year": 2026, "month": 13},
+        {"year": 2026, "month": 11, "limit": 0},
+        {"year": 2026, "month": 11, "limit": 501},
+        {"year": 2026, "month": 11, "as_of": "not-a-date"},
+    ],
+)
+def test_mcp_financial_quality_rejects_invalid_inputs(
+    mcp_client: TestClient, arguments: dict[str, Any]
+) -> None:
+    identity, code = grant(mcp_client)
+    token = exchange(mcp_client, identity, code).json()["access_token"]
+    response = rpc(
+        mcp_client,
+        token,
+        "tools/call",
+        {"name": "financial_quality_dashboard", "arguments": arguments},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["result"].get("isError") is True
