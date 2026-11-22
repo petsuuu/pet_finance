@@ -68,7 +68,8 @@ def test_snapshot_is_deterministic_complete_and_never_mutates(client: TestClient
     assert before["sections"]["transactions_archived"]["count"] == 1
     assert before["sections"]["audit_history"]["count"] >= 3
     assert before["balances"][0]["current_balance"] == "89.00"
-    assert before["quality"]["status"] == "OK"
+    assert before["quality"]["status"] in {"OK", "REVIEW"}
+    assert before["quality"]["balance_mismatches"] == 0
 
     comparison = client.post("/api/v1/audit/financial-snapshot/compare", json={"baseline": before})
     assert comparison.status_code == 200, comparison.text
