@@ -1,7 +1,16 @@
-name: Manual production readiness (no deploy)
+name: Solo manual release readiness (no deploy)
 
 on:
   workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: "Exact 40-character main commit SHA to verify"
+        required: true
+        type: string
+      confirmation:
+        description: "Type VERIFY READINESS followed by a space and the SHA"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -11,24 +20,24 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  approval-policy:
-    name: Verify protected environment policy
-    # This job checks configuration only. GitHub Environment enforces the actual
-    # human review when configured. No Render/MCP tokens are used here.
+  solo-readiness:
+    name: Verify explicit owner attestation, not deploy approval
     runs-on: ubuntu-latest
-    environment: production
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Fail closed without required reviewers and self-review block
+      - name: Confirm trusted dispatch context and exact checked-out main commit
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          CONFIRMATION: ${{ inputs.confirmation }}
         run: python -m app.services.github_release_gate
-      - name: Report remaining mandatory operational gates
+      - name: Explain remaining release gates
         run: |
-          echo "Environment policy checked, but production release NOT authorized."
-          echo "Require read-only HTTP/MCP acceptance, fresh financial baseline,"
-          echo "explicit merge/deploy authorization, and post-deploy reconciliation."
-          echo "This workflow has NO deployment capability."
+          echo "Only solo readiness attested. This is NOT independent review."
+          echo "This workflow has no Render, MCP, GitHub write, or deployment tokens."
+          echo "Before any separate manual release, verify HTTP/MCP read-only acceptance,"
+          echo "fresh baseline, exact commit, explicit deploy consent, and post-deploy MATCH."
