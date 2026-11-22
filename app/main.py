@@ -29,6 +29,7 @@ from app.services.budgets import budgets_router, ensure_current_budgets
 from app.services.dashboard import dashboard_router
 from app.services.finance_rebase import finance_rebase_router
 from app.services.imports import imports_router
+from app.services.integrity_audit import integrity_router
 from app.services.ledger import Ledger
 from app.services.merchants import merchants_router
 from app.services.payments import payment_router
@@ -248,6 +249,7 @@ def create_app(settings: Settings) -> FastAPI:
             ).mappings()
         ]
 
+    api.include_router(integrity_router(ledger))
     api.include_router(imports_router(ledger))
     api.include_router(finance_rebase_router(ledger))
     api.include_router(dashboard_router(ledger))
