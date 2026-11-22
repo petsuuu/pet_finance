@@ -2,7 +2,9 @@
 
 from fastapi.testclient import TestClient
 
-from tests.test_mcp import exchange, grant, mcp_client, rpc
+from tests.test_mcp import exchange, grant, rpc
+
+pytest_plugins = ("tests.test_mcp",)
 
 
 def test_mcp_quality_dashboard_is_read_only(mcp_client: TestClient) -> None:
