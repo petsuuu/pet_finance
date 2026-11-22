@@ -1,0 +1,34 @@
+name: Manual production readiness (no deploy)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-readiness
+  cancel-in-progress: false
+
+jobs:
+  approval-policy:
+    name: Verify protected environment policy
+    # This job checks configuration only. GitHub Environment enforces the actual
+    # human review when configured. No Render/MCP tokens are used here.
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fail closed without required reviewers and self-review block
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python -m app.services.github_release_gate
+      - name: Report remaining mandatory operational gates
+        run: |
+          echo "Environment policy checked, but production release NOT authorized."
+          echo "Require read-only HTTP/MCP acceptance, fresh financial baseline,"
+          echo "explicit merge/deploy authorization, and post-deploy reconciliation."
+          echo "This workflow has NO deployment capability."
