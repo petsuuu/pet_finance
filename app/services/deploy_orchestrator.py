@@ -15,6 +15,7 @@ from typing import Any, Iterator, Protocol
 
 from cryptography.fernet import Fernet, InvalidToken
 
+from app.services.deploy_approval import SignedApprovalVerifier
 from app.services.deploy_safety import check_postdeploy, check_predeploy
 
 FORMAT = "pet-finance-manual-deploy-v2"
@@ -128,6 +129,8 @@ def prepare_predeploy(
     plugin_version: str,
     authorization_id: str,
     execution_id: str,
+    approval_receipt: dict[str, Any],
+    approval_verifier: SignedApprovalVerifier,
     vault_dir: Path,
     encryption_key: bytes,
     now: datetime | None = None,
@@ -139,6 +142,16 @@ def prepare_predeploy(
             return _blocked("INVALID_APPROVAL_REFERENCE", "predeploy")
         if current.tzinfo is None:
             return _blocked("INVALID_CURRENT_TIME", "predeploy")
+        if not approval_verifier.verify(
+            approval_receipt,
+            service_id=service_id,
+            commit=commit,
+            plugin_version=plugin_version,
+            authorization_id=authorization_id,
+            execution_id=execution_id,
+            at=current,
+        ):
+            return _blocked("AUTHORIZATION_NOT_VERIFIED", "predeploy")
         service = source.render_service()
         main_commit = source.main_commit()
         plugin = source.plugin_info()
@@ -163,6 +176,7 @@ def prepare_predeploy(
             "expected_plugin_version": plugin_version,
             "authorization_id": authorization_id,
             "execution_id": execution_id,
+            "approval_receipt": approval_receipt,
             "captured_at": baseline["captured_at"],
             "baseline": baseline,
         }
@@ -193,6 +207,7 @@ def verify_postdeploy(
     plugin_version: str,
     authorization_id: str,
     execution_id: str,
+    approval_verifier: SignedApprovalVerifier,
     now: datetime | None = None,
 ) -> dict[str, Any]:
     """Revalidate authorization binding, evidence age, then compare read-only data."""
@@ -215,6 +230,16 @@ def verify_postdeploy(
             or not isinstance(record.get("baseline"), dict)
         ):
             return _blocked("EVIDENCE_BINDING_MISMATCH", "postdeploy")
+        if not approval_verifier.verify(
+            record.get("approval_receipt"),
+            service_id=service_id,
+            commit=commit,
+            plugin_version=plugin_version,
+            authorization_id=authorization_id,
+            execution_id=execution_id,
+            at=current,
+        ):
+            return _blocked("AUTHORIZATION_NOT_VERIFIED", "postdeploy")
         baseline = record["baseline"]
         if record.get("captured_at") != baseline.get("captured_at") or not _fresh(
             record.get("captured_at"), now=current, max_age=MAX_AUDIT_WINDOW
