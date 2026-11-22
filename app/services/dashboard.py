@@ -11,6 +11,7 @@ from app.services.budgets import budget_usage
 from app.services.cashflow import daily_cashflow
 from app.services.comparison import category_comparison
 from app.services.ledger import Ledger
+from app.services.monthly_planning import income_reconciliation, planning_summary
 from app.services.occurrences import occurrence_dates
 from app.services.payments import payment_groups
 from app.services.radar import recurring_radar
@@ -97,6 +98,12 @@ def monthly_dashboard(
     planned = budgets["unrecorded_planned_spending"]
     target = budgets["savings_target"] or ZERO
     after_plan = balance + expected_income - commitments - planned - target - safety_margin
+    income_status = income_reconciliation(
+        operational_transactions, rules, accounts, start, end, as_of
+    )
+    plan_status = planning_summary(
+        balance, commitments, planned, target, safety_margin, expected_income
+    )
     result = {
         "year": year,
         "month": month,
@@ -110,6 +117,8 @@ def monthly_dashboard(
         "pending_recorded_expenses": pending_expense,
         "unrecorded_recurring_expenses": virtual_expense,
         "expected_income": expected_income,
+        "income_reconciliation": income_status,
+        "monthly_planning": plan_status,
         "safety_margin": safety_margin,
         "free_after_commitments": balance - commitments - safety_margin,
         "forecast_closing_balance": balance + expected_income - commitments,
