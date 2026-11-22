@@ -133,7 +133,8 @@ def inspect_integrity(service: Ledger, *, limit: int = 100) -> dict[str, Any]:
     recurrence_mismatches = []
     for movement in transactions:
         rule_id = movement.get("recurrence_id")
-        # Paid historical occurrences may legitimately retain their former account.\n        if rule_id is None or movement["status"] != "PENDING":
+        # Paid historical occurrences may legitimately retain their former account.
+        if rule_id is None or movement["status"] != "PENDING":
             continue
         rule = rules.get(rule_id)
         if rule is None:
