@@ -16,6 +16,7 @@ from app.services.preventive_audit import (
     classification_findings,
     pending_recurrence_duplicate_groups,
     pending_reference_findings,
+    settled_pending_recurrence_overlaps,
     similar_description_duplicates,
 )
 
@@ -182,6 +183,7 @@ def inspect_integrity(service: Ledger, *, limit: int = 100) -> dict[str, Any]:
     similar_duplicates = similar_description_duplicates(transactions)
     pending_references = pending_reference_findings(transactions, all_accounts, rules)
     pending_recurrence_duplicates = pending_recurrence_duplicate_groups(transactions)
+    settled_pending_overlaps = settled_pending_recurrence_overlaps(transactions)
 
     return {
         "read_only": True,
@@ -194,12 +196,14 @@ def inspect_integrity(service: Ledger, *, limit: int = 100) -> dict[str, Any]:
             "similar_duplicate_pairs": len(similar_duplicates),
             "pending_reference_findings": len(pending_references),
             "pending_recurrence_duplicate_groups": len(pending_recurrence_duplicates),
+            "settled_pending_overlap_groups": len(settled_pending_overlaps),
         },
         "balances": balances,
         "classification_findings": classifications[:limit],
         "similar_duplicate_pairs": similar_duplicates[:limit],
         "pending_reference_findings": pending_references[:limit],
         "pending_recurrence_duplicates": pending_recurrence_duplicates[:limit],
+        "settled_pending_overlaps": settled_pending_overlaps[:limit],
         "potential_duplicates": duplicate_groups[:limit],
         "recurrence_account_mismatches": recurrence_mismatches[:limit],
         "truncated": {
@@ -207,6 +211,7 @@ def inspect_integrity(service: Ledger, *, limit: int = 100) -> dict[str, Any]:
             "similar_duplicate_pairs": len(similar_duplicates) > limit,
             "pending_reference_findings": len(pending_references) > limit,
             "pending_recurrence_duplicates": len(pending_recurrence_duplicates) > limit,
+            "settled_pending_overlaps": len(settled_pending_overlaps) > limit,
             "potential_duplicates": len(duplicate_groups) > limit,
             "recurrence_account_mismatches": len(recurrence_mismatches) > limit,
         },
