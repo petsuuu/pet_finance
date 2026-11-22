@@ -39,9 +39,7 @@ def envelope_allocation_preview(
         available = ceiling
         suggestions: list[dict[str, Any]] = []
         for destination in destinations:
-            need = max(
-                ZERO, -Decimal(destination["after_known_commitments_without_income"])
-            )
+            need = max(ZERO, -Decimal(destination["after_known_commitments_without_income"]))
             if conditional:
                 # Already expected transfers into the destination should not be
                 # suggested a second time in the hypothetical future plan.
