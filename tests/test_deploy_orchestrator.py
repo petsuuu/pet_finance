@@ -8,8 +8,11 @@ from typing import Any
 
 import pytest
 from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from app.services.audit_snapshots import SECTION_NAMES, _digest
+from app.services.deploy_approval import RECEIPT_FORMAT, SignedApprovalVerifier, canonical_claims
 from app.services.deploy_orchestrator import prepare_predeploy, verify_postdeploy
 
 SHA = "a" * 40
@@ -19,6 +22,34 @@ EXECUTION = "release-20261122-1234"
 SERVICE = {"id": "srv-test", "branch": "main", "autoDeploy": "no", "autoDeployTrigger": "off"}
 PLUGIN = {"version": "0.4.0", "read_only": True}
 EMPTY_HASH = _digest([])
+
+
+ISSUER_KEY = Ed25519PrivateKey.generate()
+PUBLIC_KEY = ISSUER_KEY.public_key().public_bytes(
+    encoding=serialization.Encoding.Raw,
+    format=serialization.PublicFormat.Raw,
+)
+VERIFIER = SignedApprovalVerifier(PUBLIC_KEY)
+
+
+def approval_receipt() -> dict[str, Any]:
+    import base64
+
+    claims = {
+        "format": RECEIPT_FORMAT,
+        "authorization_id": AUTHORIZATION,
+        "execution_id": EXECUTION,
+        "service_id": "srv-test",
+        "commit": SHA,
+        "plugin_version": "0.4.0",
+        "issued_at": (NOW - timedelta(minutes=1)).isoformat(),
+        "expires_at": (NOW + timedelta(hours=1)).isoformat(),
+        "approved": True,
+    }
+    return {
+        "claims": claims,
+        "signature": base64.b64encode(ISSUER_KEY.sign(canonical_claims(claims))).decode(),
+    }
 
 
 def baseline() -> dict[str, Any]:
@@ -122,6 +153,8 @@ def preflight(
         encryption_key=key,
         authorization_id=AUTHORIZATION,
         execution_id=EXECUTION,
+        approval_receipt=approval_receipt(),
+        approval_verifier=VERIFIER,
         now=NOW,
     )
 
@@ -136,6 +169,7 @@ def postflight(source: FakeSources, file: Path, key: bytes, *, commit: str = SHA
         plugin_version="0.4.0",
         authorization_id=AUTHORIZATION,
         execution_id=EXECUTION,
+        approval_verifier=VERIFIER,
         now=NOW + timedelta(minutes=2),
     )
 
@@ -252,6 +286,7 @@ def test_bound_authorization_execution_and_baseline_freshness(tmp_path: Path) ->
         plugin_version="0.4.0",
         authorization_id="another-approval-reference",
         execution_id=EXECUTION,
+        approval_verifier=VERIFIER,
         now=NOW + timedelta(minutes=1),
     )
     assert invalid_auth["status"] == "BLOCKED"
@@ -265,6 +300,7 @@ def test_bound_authorization_execution_and_baseline_freshness(tmp_path: Path) ->
         plugin_version="0.4.0",
         authorization_id=AUTHORIZATION,
         execution_id=EXECUTION,
+        approval_verifier=VERIFIER,
         now=NOW + timedelta(hours=3),
     )
     assert expired["issues"] == ["EXPIRED_BASELINE"]
@@ -334,3 +370,35 @@ def test_no_partial_file_on_fsync_failure(tmp_path: Path, monkeypatch: pytest.Mo
     result = preflight(source, tmp_path / "private", key)
     assert result["status"] == "BLOCKED"
     assert list((tmp_path / "private").iterdir()) == []
+
+
+def test_predeploy_rejects_forged_or_missing_approval(tmp_path: Path) -> None:
+    source = FakeSources()
+    key = Fernet.generate_key()
+    forged = approval_receipt()
+    forged["claims"]["approved"] = False
+    from app.services.deploy_orchestrator import prepare_predeploy
+
+    data = {
+        "service_id": "srv-test", "commit": SHA, "plugin_version": "0.4.0",
+        "authorization_id": AUTHORIZATION, "execution_id": EXECUTION,
+        "approval_verifier": VERIFIER, "vault_dir": tmp_path / "private",
+        "encryption_key": key, "now": NOW,
+    }
+    result = prepare_predeploy(source, approval_receipt=forged, **data)
+    assert result["issues"] == ["AUTHORIZATION_NOT_VERIFIED"]
+    assert source.calls == []
+    assert not (tmp_path / "private").exists()
+
+
+def test_postdeploy_rejects_expired_external_approval(tmp_path: Path) -> None:
+    source = FakeSources()
+    key = Fernet.generate_key()
+    file = Path(preflight(source, tmp_path / "private", key)["evidence_file"])
+    result = verify_postdeploy(
+        source, evidence_file=file, encryption_key=key,
+        service_id="srv-test", commit=SHA, plugin_version="0.4.0",
+        authorization_id=AUTHORIZATION, execution_id=EXECUTION,
+        approval_verifier=VERIFIER, now=NOW + timedelta(hours=1, minutes=1),
+    )
+    assert result["issues"] == ["AUTHORIZATION_NOT_VERIFIED"]
