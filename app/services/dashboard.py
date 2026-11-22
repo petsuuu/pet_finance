@@ -19,6 +19,7 @@ from app.services.monthly_planning import (
 )
 from app.services.occurrences import occurrence_dates
 from app.services.payments import payment_groups
+from app.services.post_salary_alerts import post_salary_envelope_alerts
 from app.services.radar import recurring_radar
 from app.services.recovery import recovery_plan
 from app.services.scoping import account_balance, posted_after_opening_balance
@@ -110,6 +111,7 @@ def monthly_dashboard(
         balance, commitments, planned, target, safety_margin, expected_income
     )
     envelopes = envelope_projections(accounts, transactions, rules, start, end, as_of)
+    allocation = envelope_allocation_preview(envelopes, plan_status)
     result = {
         "year": year,
         "month": month,
@@ -126,7 +128,10 @@ def monthly_dashboard(
         "income_reconciliation": income_status,
         "monthly_planning": plan_status,
         "envelope_projections": envelopes,
-        "envelope_allocation_preview": envelope_allocation_preview(envelopes, plan_status),
+        "envelope_allocation_preview": allocation,
+        "post_salary_envelope_alerts": post_salary_envelope_alerts(
+            income_status, envelopes, allocation
+        ),
         "safety_margin": safety_margin,
         "free_after_commitments": balance - commitments - safety_margin,
         "forecast_closing_balance": balance + expected_income - commitments,
