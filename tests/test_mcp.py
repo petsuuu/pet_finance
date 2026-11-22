@@ -811,3 +811,53 @@ def test_mcp_quality_dashboard_requires_authentication(mcp_client: TestClient) -
         ).status_code
         == 401
     )
+
+
+def test_mcp_financial_snapshot_and_comparison_are_authenticated_and_read_only(
+    mcp_client: TestClient,
+) -> None:
+    identity, code = grant(mcp_client)
+    token = exchange(mcp_client, identity, code).json()["access_token"]
+    tools = rpc(mcp_client, token, "tools/list", {}).json()["result"]["tools"]
+    names = {"financial_audit_snapshot", "compare_financial_audit"}
+    for name in names:
+        tool = next(item for item in tools if item["name"] == name)
+        assert tool["annotations"]["readOnlyHint"] is True
+        assert tool["_meta"]["securitySchemes"][0]["type"] == "oauth2"
+
+    headers = {"Authorization": "Bearer test-token"}
+    account = mcp_client.post(
+        "/api/v1/accounts",
+        headers=headers,
+        json={"name": "Conta MCP de teste", "opening_balance": "100"},
+    )
+    assert account.status_code == 201, account.text
+    before_accounts = mcp_client.get("/api/v1/accounts", headers=headers).json()
+    before_transactions = mcp_client.get("/api/v1/transactions", headers=headers).json()
+    before_history = mcp_client.get("/api/v1/audit/transactions", headers=headers).json()
+
+    snapshot = rpc(
+        mcp_client, token, "tools/call",
+        {"name": "financial_audit_snapshot", "arguments": {}},
+    ).json()["result"]
+    assert not snapshot.get("isError"), snapshot
+    baseline = snapshot["structuredContent"]
+    assert baseline["read_only"] is True
+    assert baseline["sections"]["accounts"]["count"] == 1
+    assert len(baseline["snapshot_hash"]) == 64
+
+    compared = rpc(
+        mcp_client, token, "tools/call",
+        {"name": "compare_financial_audit", "arguments": {"baseline": baseline}},
+    ).json()["result"]
+    assert not compared.get("isError"), compared
+    assert compared["structuredContent"]["status"] == "MATCH"
+    assert compared["structuredContent"]["read_only"] is True
+
+    assert mcp_client.get("/api/v1/accounts", headers=headers).json() == before_accounts
+    assert mcp_client.get("/api/v1/transactions", headers=headers).json() == before_transactions
+    assert mcp_client.get("/api/v1/audit/transactions", headers=headers).json() == before_history
+    assert rpc(
+        mcp_client, "invalid", "tools/call",
+        {"name": "financial_audit_snapshot", "arguments": {}},
+    ).status_code == 401
