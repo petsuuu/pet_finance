@@ -106,3 +106,43 @@ def test_integrity_audit_limit_and_no_data_leak(client: TestClient) -> None:
     assert response.status_code == 422
     assert client.get("/api/v1/audit/integrity").json()["balances"] == []
     assert client.get("/api/v1/audit/integrity").json()["potential_duplicates"] == []
+
+
+def test_inactive_legacy_accounts_are_excluded_from_operational_audit(
+    client: TestClient,
+) -> None:
+    legacy = create_account(client, "Legacy", "100.00")
+    current = create_account(client, "Current", "50.00")
+    old = expense(client, legacy, "legacy-paid")
+    deactivated = client.patch(f"/api/v1/accounts/{legacy}", json={"active": False})
+    assert deactivated.status_code == 200, deactivated.text
+    report = client.get("/api/v1/audit/integrity").json()
+    assert report["summary"]["accounts_checked"] == 1
+    assert [row["account_id"] for row in report["balances"]] == [current]
+    assert report["summary"]["balance_mismatches"] == 0
+    assert client.get(f"/api/v1/transactions/{old}").status_code == 200
+
+
+def test_paid_recurrence_history_is_not_flagged_after_rule_change(
+    client: TestClient,
+) -> None:
+    source = create_account(client, "Former")
+    destination = create_account(client, "Future")
+    response = client.post(
+        "/api/v1/recurrences",
+        json={
+            "description": "Subscription",
+            "expected_amount": "10.00",
+            "account_id": source,
+            "due_day": 22,
+            "start_date": "2026-11-01",
+        },
+    )
+    assert response.status_code == 201, response.text
+    rule_id = str(response.json()["id"])
+    paid = expense(client, source, "paid-subscription", recurrence_id=rule_id)
+    changed = client.patch(f"/api/v1/recurrences/{rule_id}", json={"account_id": destination})
+    assert changed.status_code == 200, changed.text
+    report = client.get("/api/v1/audit/integrity").json()
+    assert report["summary"]["recurrence_account_mismatches"] == 0
+    assert client.get(f"/api/v1/transactions/{paid}").json()["account_id"] == source
