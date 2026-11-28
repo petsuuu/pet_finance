@@ -56,7 +56,7 @@ def preview(service: Ledger, body: ReconciliationPreview) -> dict[str, Any]:
         "observed_balance": body.observed_balance,
         "difference": difference,
         "preview_token": token,
-        "can_commit": difference > 0,
+        "can_commit": difference != 0,
     }
 
 
@@ -83,8 +83,8 @@ def commit(service: Ledger, body: ReconciliationCommit) -> dict[str, Any]:
     ):
         raise HTTPException(409, "Balance changed; request a new preview")
     difference = current["difference"]
-    if difference <= 0:
-        raise HTTPException(422, "Zero or negative adjustment is not supported yet")
+    if difference == 0:
+        raise HTTPException(422, "Balance already reconciled")
     today = datetime.now(ZoneInfo("America/Sao_Paulo")).date()
     account = service.get("accounts", body.account_id)
     cutoff = account.get("opening_balance_date")
@@ -110,4 +110,6 @@ def commit(service: Ledger, body: ReconciliationCommit) -> dict[str, Any]:
         payload_hash=digest,
         transaction_id=result["id"],
     ))
+    if preview(service, body)["recorded_balance"] != body.observed_balance:
+        raise HTTPException(409, "Post-adjustment balance verification failed")
     return result
