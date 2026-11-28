@@ -37,6 +37,8 @@ from app.services.budgets import BudgetGenerate, BudgetSet, SavingsTargetSet
 from app.services.finance_rebase import FinancialRebase
 from app.services.oauth import OwnerOAuth
 from app.services.payments import PaymentInput
+from app.services.reconciliation import ReconciliationCommit, ReconciliationPreview
+from app.services.transfers import TransferCreate
 
 
 def _query_params(**values: object) -> dict[str, str]:
@@ -183,6 +185,61 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
             "PATCH", f"/accounts/{identity}", body.model_dump(mode="json", exclude_unset=True)
         )
         return result
+
+    @server.tool(annotations=write, meta=meta)
+    async def create_transfer(body: TransferCreate, confirmed: bool = False) -> dict[str, Any]:
+        """Registre transferência já realizada, não execute PIX ou operação bancária.
+
+        Consulte contas e mostre origem, destino, valor e data antes de pedir confirmação.
+        Somente após autorização explícita use confirmed=true. Reuse a chave em retries.
+        Contas excluídas do resumo só devem ser mencionadas em consulta explícita.
+        """
+        if not confirmed:
+            raise ValueError("Explicit user confirmation required")
+        result: dict[str, Any] = await rest("POST", "/transfers", body.model_dump(mode="json"))
+        return result
+
+    @server.tool(annotations=read, meta=meta)
+    async def reconciliation_preview(body: ReconciliationPreview) -> dict[str, Any]:
+        """Compare saldo registrado com saldo bancário informado pelo usuário.
+
+        Não altera dados. Não invente saldo bancário nem exponha reservas privadas
+        em briefings. Mostre a diferença e peça confirmação antes de gravar.
+        """
+        result: dict[str, Any] = await rest(
+            "POST", "/reconciliation/preview", body.model_dump(mode="json")
+        )
+        return result
+
+    @server.tool(annotations=write, meta=meta)
+    async def reconciliation_commit(
+        body: ReconciliationCommit, confirmed: bool = False
+    ) -> dict[str, Any]:
+        """Aplique exclusivamente a prévia confirmada pelo usuário.
+
+        Preserve token, saldo esperado e chave de idempotência. Se houver conflito,
+        solicite nova prévia e confirmação. Não use para ocultar gastos ou receitas.
+        """
+        if not confirmed:
+            raise ValueError("Explicit user confirmation required")
+        result: dict[str, Any] = await rest(
+            "POST", "/reconciliation/commit", body.model_dump(mode="json")
+        )
+        return result
+
+    @server.tool(annotations=read, meta=meta)
+    async def list_transfers(limit: int = 100, offset: int = 0) -> dict[str, Any]:
+        """Consulte transferências explicitamente solicitadas, sem modificar dados."""
+        return {"items": await rest(
+            "GET", "/transactions", params={"type": "TRANSFER", "limit": limit, "offset": offset}
+        )}
+
+    @server.tool(annotations=read, meta=meta)
+    async def list_reconciliations(limit: int = 100, offset: int = 0) -> dict[str, Any]:
+        """Consulte ajustes de saldo explicitamente solicitados, sem modificar dados."""
+        return {"items": await rest(
+            "GET", "/transactions", params={"type": "ADJUSTMENT", "limit": limit, "offset": offset}
+        )}
 
     @server.tool(annotations=read, meta=meta)
     async def financial_rebase_preview(body: FinancialRebase) -> dict[str, Any]:
