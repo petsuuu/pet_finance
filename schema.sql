@@ -119,7 +119,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   type transaction_type NOT NULL,
   status transaction_status NOT NULL DEFAULT 'PENDING',
   description text NOT NULL,
-  amount numeric(14,2) NOT NULL CHECK (amount > 0),
+  amount numeric(14,2) NOT NULL CHECK (amount > 0 OR (type = 'ADJUSTMENT' AND amount < 0)),
   currency_code char(3) NOT NULL DEFAULT 'BRL',
   transaction_date date NOT NULL,
   account_id uuid REFERENCES accounts(id) ON DELETE SET NULL,
