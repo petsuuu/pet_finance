@@ -227,19 +227,45 @@ def install_mcp(api: FastAPI, settings: Settings, engine: Engine) -> None:
         )
         return result
 
-    @server.tool(annotations=read, meta=meta)
-    async def list_transfers(limit: int = 100, offset: int = 0) -> dict[str, Any]:
-        """Consulte transferências explicitamente solicitadas, sem modificar dados."""
-        return {"items": await rest(
-            "GET", "/transactions", params={"type": "TRANSFER", "limit": limit, "offset": offset}
-        )}
+    async def visible_movements(
+        kind: str, limit: int, offset: int, include_hidden: bool
+    ) -> dict[str, Any]:
+        rows = await rest(
+            "GET", "/transactions", params={"type": kind, "limit": limit, "offset": offset}
+        )
+        if include_hidden:
+            return {"items": rows}
+        accounts = await rest("GET", "/accounts")
+        visible = {
+            str(account.get("account_id", account.get("id")))
+            for account in accounts
+            if account.get("include_in_summary") is True
+        }
+        return {
+            "items": [
+                row
+                for row in rows
+                if str(row["account_id"]) in visible
+                and (
+                    row.get("target_account_id") is None
+                    or str(row["target_account_id"]) in visible
+                )
+            ]
+        }
 
     @server.tool(annotations=read, meta=meta)
-    async def list_reconciliations(limit: int = 100, offset: int = 0) -> dict[str, Any]:
-        """Consulte ajustes de saldo explicitamente solicitados, sem modificar dados."""
-        return {"items": await rest(
-            "GET", "/transactions", params={"type": "ADJUSTMENT", "limit": limit, "offset": offset}
-        )}
+    async def list_transfers(
+        limit: int = 100, offset: int = 0, include_hidden: bool = False
+    ) -> dict[str, Any]:
+        """Consulte transferências. Inclua contas ocultas apenas a pedido explícito."""
+        return await visible_movements("TRANSFER", limit, offset, include_hidden)
+
+    @server.tool(annotations=read, meta=meta)
+    async def list_reconciliations(
+        limit: int = 100, offset: int = 0, include_hidden: bool = False
+    ) -> dict[str, Any]:
+        """Consulte ajustes. Inclua contas ocultas apenas a pedido explícito."""
+        return await visible_movements("ADJUSTMENT", limit, offset, include_hidden)
 
     @server.tool(annotations=read, meta=meta)
     async def financial_rebase_preview(body: FinancialRebase) -> dict[str, Any]:
