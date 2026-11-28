@@ -36,6 +36,12 @@ from app.services.ledger import Ledger
 from app.services.merchants import merchants_router
 from app.services.payments import payment_router
 from app.services.plans import plans_router
+from app.services.reconciliation import (
+    ReconciliationCommit,
+    ReconciliationPreview,
+    commit as reconcile_commit,
+    preview as reconcile_preview,
+)
 from app.services.recurrences import lock
 from app.services.schedules import schedules_router
 from app.services.spending import spending_router
@@ -126,6 +132,14 @@ def create_app(settings: Settings) -> FastAPI:
         if body.source in {"CHATGPT", "MANUAL"}:
             ensure_current_budgets(service)
         return result
+
+    @api.post("/api/v1/reconciliation/preview")
+    def preview_reconciliation(body: ReconciliationPreview, service: Service) -> dict[str, Any]:
+        return reconcile_preview(service, body)
+
+    @api.post("/api/v1/reconciliation/commit", status_code=201)
+    def commit_reconciliation(body: ReconciliationCommit, service: Service) -> dict[str, Any]:
+        return reconcile_commit(service, body)
 
     @api.post("/api/v1/transfers", status_code=201)
     def create_transfer(body: TransferCreate, service: Service) -> dict[str, Any]:
