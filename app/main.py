@@ -39,6 +39,7 @@ from app.services.plans import plans_router
 from app.services.recurrences import lock
 from app.services.schedules import schedules_router
 from app.services.spending import spending_router
+from app.services.transfers import TransferCreate, transfer
 
 
 def create_app(settings: Settings) -> FastAPI:
@@ -126,6 +127,10 @@ def create_app(settings: Settings) -> FastAPI:
             ensure_current_budgets(service)
         return result
 
+    @api.post("/api/v1/transfers", status_code=201)
+    def create_transfer(body: TransferCreate, service: Service) -> dict[str, Any]:
+        return transfer(service, body)
+
     @api.get("/api/v1/transactions")
     def transactions(
         service: Service,
@@ -134,7 +139,7 @@ def create_app(settings: Settings) -> FastAPI:
         account_id: UUID | None = None,
         category_id: UUID | None = None,
         status: Status | None = None,
-        type: Kind | None = None,
+        type: Kind | Literal["TRANSFER", "ADJUSTMENT"] | None = None,
         search: str | None = None,
         tag: UUID | None = None,
         limit: Annotated[int, Query(ge=1, le=500)] = 100,
@@ -189,6 +194,8 @@ def create_app(settings: Settings) -> FastAPI:
         if service.get("transactions", identity)["status"] == "CANCELLED":
             raise HTTPException(409, "Cancelled transactions cannot be edited")
         before = service.get("transactions", identity)
+        if before["type"] in {"TRANSFER", "ADJUSTMENT"}:
+            raise HTTPException(409, "Financial movements cannot be edited directly")
         if body.account_id is not None and body.account_id != before["account_id"]:
             if before.get("archived_at") is not None or before.get("baseline_included"):
                 raise HTTPException(409, "Archived or baseline transactions cannot change accounts")
@@ -234,6 +241,8 @@ def create_app(settings: Settings) -> FastAPI:
         before = service.get("transactions", identity)
         if before["status"] == "CANCELLED":
             return before
+        if before["type"] in {"TRANSFER", "ADJUSTMENT"}:
+            raise HTTPException(409, "Financial movements require a dedicated reversal")
         return service.patch("transactions", identity, {"status": "CANCELLED"})
 
     @api.get("/api/v1/audit/transactions")
