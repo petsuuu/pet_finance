@@ -982,3 +982,62 @@ def test_mcp_financial_quality_rejects_invalid_inputs(
     )
     assert response.status_code == 200, response.text
     assert response.json()["result"].get("isError") is True
+
+
+def test_mcp_financial_movements_require_confirmation(mcp_client: TestClient) -> None:
+    identity, code = grant(mcp_client)
+    token = exchange(mcp_client, identity, code).json()["access_token"]
+    tools = rpc(mcp_client, token, "tools/list", {}).json()["result"]["tools"]
+    by_name = {tool["name"]: tool for tool in tools}
+    for name in ("create_transfer", "reconciliation_commit"):
+        assert by_name[name]["annotations"]["readOnlyHint"] is False
+        assert by_name[name]["annotations"]["idempotentHint"] is True
+        assert by_name[name]["_meta"]["securitySchemes"][0]["scopes"] == ["finance"]
+    for name in ("list_transfers", "list_reconciliations", "reconciliation_preview"):
+        assert by_name[name]["annotations"]["readOnlyHint"] is True
+
+    headers = {"Authorization": "Bearer test-token"}
+    accounts = []
+    for name in ("Origin", "Destination"):
+        response = mcp_client.post(
+            "/api/v1/accounts", headers=headers,
+            json={"name": name, "opening_balance": "100"},
+        )
+        assert response.status_code == 201, response.text
+        accounts.append(response.json()["id"])
+
+    def call(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        response = rpc(mcp_client, token, "tools/call", {
+            "name": name, "arguments": arguments,
+        })
+        assert response.status_code == 200, response.text
+        result: dict[str, Any] = response.json()["result"]
+        return result
+
+    body = {
+        "account_id": accounts[0], "target_account_id": accounts[1],
+        "amount": "20", "description": "Transfer test",
+        "transaction_date": "2025-01-01", "idempotency_key": "mcp-transfer",
+    }
+    before = mcp_client.get("/api/v1/accounts", headers=headers).json()
+    assert call("create_transfer", {"body": body}).get("isError")
+    assert mcp_client.get("/api/v1/accounts", headers=headers).json() == before
+    first = call("create_transfer", {"body": body, "confirmed": True})
+    assert not first.get("isError"), first
+    replay = call("create_transfer", {"body": body, "confirmed": True})
+    assert replay["structuredContent"]["id"] == first["structuredContent"]["id"]
+    observed = {
+        "account_id": accounts[0], "observed_balance": "75", "reason": "Test statement",
+    }
+    result = call("reconciliation_preview", {"body": observed})
+    assert not result.get("isError"), result
+    preview = result["structuredContent"]
+    commit = {
+        **observed, "expected_balance": "80",
+        "preview_token": preview["preview_token"], "idempotency_key": "mcp-reconcile",
+    }
+    assert call("reconciliation_commit", {"body": commit}).get("isError")
+    result = call("reconciliation_commit", {"body": commit, "confirmed": True})
+    assert not result.get("isError"), result
+    assert len(call("list_transfers", {})["structuredContent"]["items"]) == 1
+    assert len(call("list_reconciliations", {})["structuredContent"]["items"]) == 1
